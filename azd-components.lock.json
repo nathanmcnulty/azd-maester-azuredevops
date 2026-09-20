@@ -3,14 +3,14 @@
   "components": [
     {
       "id": "maester-azd-hooks",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "sourceRepository": "https://github.com/nathanmcnulty/azd-reference",
-      "sourceRevision": "f25d86d86bed00018aa17f39bf2f8e4d0a9f7327",
+      "sourceRevision": "ded4f62091426f35f58c4d2edf3a08956769189d",
       "files": [
         {
           "source": "components/powershell/maester-azd-hooks/Get-ManagedIdentityPrincipal.ps1",
           "target": "scripts/vendor/Azd.MaesterHooks/Get-ManagedIdentityPrincipal.ps1",
-          "sha256": "deec3e1acbf30abf932b6ffd932634e38f7738682d0d009d31bbf49292436e27"
+          "sha256": "8eb91e3dee8e3a59647e8da1e1434b1227e889916bf100af1ca6eca331d63ec5"
         },
         {
           "source": "components/powershell/maester-azd-hooks/Grant-MaesterGraphPermissions.ps1",
