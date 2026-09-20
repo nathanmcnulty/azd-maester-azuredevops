@@ -38,6 +38,7 @@ For non-interactive runs (`azd up --no-prompt`), if `AZURE_RESOURCE_GROUP` is se
 ## What setup does
 
 - Resolves azd environment values through the preprovision wizard and provisions Azure infra.
+- Before Azure provisioning, verifies that the selected Azure DevOps project is accessible and that a missing repository can be created.
 - Creates or reuses Azure Repos repository (default enabled).
 - Creates or reuses Azure DevOps service connection with workload identity federation (`CreationMode=Manual`).
 - Creates or reuses Entra app/service principal and federated credential.
