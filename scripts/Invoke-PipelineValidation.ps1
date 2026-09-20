@@ -50,6 +50,70 @@ function ConvertTo-PlainTextToken {
   return [string]$TokenValue
 }
 
+function Get-AzureDevOpsCliAccessToken {
+  param(
+    [Parameter(Mandatory = $false)]
+    [string]$SubscriptionId,
+
+    [Parameter(Mandatory = $false)]
+    [string]$TenantId
+  )
+
+  $tokenArgs = @(
+    'account',
+    'get-access-token',
+    '--resource',
+    '499b84ac-1321-427f-aa17-267ca6975798',
+    '-o',
+    'tsv'
+  )
+  if (-not [string]::IsNullOrWhiteSpace($SubscriptionId)) {
+    $tokenArgs += @('--subscription', $SubscriptionId)
+  }
+  elseif (-not [string]::IsNullOrWhiteSpace($TenantId)) {
+    $tokenArgs += @('--tenant', $TenantId)
+  }
+
+  $token = (& az @tokenArgs 2>$null)
+  if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($token)) {
+    return ([string]$token).Trim()
+  }
+
+  return $null
+}
+
+function Get-AzureDevOpsAccessToken {
+  param(
+    [Parameter(Mandatory = $false)]
+    [string]$SubscriptionId,
+
+    [Parameter(Mandatory = $false)]
+    [string]$TenantId
+  )
+
+  $cliToken = Get-AzureDevOpsCliAccessToken -SubscriptionId $SubscriptionId -TenantId $TenantId
+  if (-not [string]::IsNullOrWhiteSpace($cliToken)) {
+    return $cliToken
+  }
+
+  try {
+    $tokenParams = @{ ResourceUrl = '499b84ac-1321-427f-aa17-267ca6975798' }
+    if (-not [string]::IsNullOrWhiteSpace($TenantId)) {
+      $tokenParams['TenantId'] = $TenantId
+    }
+    $tokenResponse = Get-AzAccessToken @tokenParams
+    $azToken = ConvertTo-PlainTextToken -TokenValue $tokenResponse.Token
+    if (-not [string]::IsNullOrWhiteSpace($azToken)) {
+      return $azToken.Trim()
+    }
+  }
+  catch {
+    Write-Verbose "Azure PowerShell Azure DevOps token acquisition failed: $($_.Exception.Message)"
+  }
+
+  throw 'Could not acquire an Azure DevOps token. Ensure the selected Azure CLI or Azure PowerShell account is authenticated for the target tenant.'
+}
+
 function Get-OptionalPropertyValue {
   param(
     [Parameter(Mandatory = $false)]
@@ -118,7 +182,9 @@ if (-not $TenantId -and $env:AZURE_TENANT_ID) {
   $TenantId = $env:AZURE_TENANT_ID
 }
 
-if ($SubscriptionId) {
+$devOpsToken = Get-AzureDevOpsCliAccessToken -SubscriptionId $SubscriptionId -TenantId $TenantId
+
+if ($SubscriptionId -and [string]::IsNullOrWhiteSpace($devOpsToken)) {
   $existingContext = Get-AzContext -ErrorAction SilentlyContinue
   $requiresLogin = $true
   if ($existingContext -and $existingContext.Subscription -and $existingContext.Subscription.Id -eq $SubscriptionId) {
@@ -136,8 +202,7 @@ if ($SubscriptionId) {
   }
 }
 
-$tokenResponse = Get-AzAccessToken -ResourceUrl '499b84ac-1321-427f-aa17-267ca6975798'
-$devOpsToken = ConvertTo-PlainTextToken -TokenValue $tokenResponse.Token
+$devOpsToken = Get-AzureDevOpsAccessToken -SubscriptionId $SubscriptionId -TenantId $TenantId
 Connect-ADOPS -Organization $AdoOrganization -OAuthToken $devOpsToken -SkipVerification | Out-Null
 
 $pipeline = Get-ADOPSPipeline -Project $AdoProject -Name $PipelineName -Organization $AdoOrganization

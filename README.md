@@ -59,6 +59,8 @@ For non-interactive runs (`azd up --no-prompt`), if `AZURE_RESOURCE_GROUP` is se
 
 Some environments already have the required Microsoft Graph permissions consented and assigned. If Graph consent has not been completed previously, the deployment may require a **Global Administrator or Privileged Role Administrator**. See the selected profile and permission sections for solution-specific details. Optional Exchange, Teams, Azure, and Easy Auth setup has its own prerequisites, so a successful repository or service-connection setup is not proof that the monitoring workload is ready.
 
+The Azure DevOps identity used for setup must have Code access in the organization (for example, a Basic access level or a Visual Studio subscription) and `Create repository` permission in the target project. Stakeholder access cannot create or use the Azure Repos repository required by this template. The hooks use the selected Azure CLI token first and retain Azure PowerShell token acquisition as a fallback.
+
 ## Operations
 
 - Provision/update:
