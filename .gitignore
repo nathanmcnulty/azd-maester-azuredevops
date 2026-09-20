@@ -1,0 +1,5 @@
+.azure/
+outputs/
+reports/
+test-results/
+*.local.json
