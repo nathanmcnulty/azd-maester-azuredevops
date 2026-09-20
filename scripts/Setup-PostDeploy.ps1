@@ -122,6 +122,80 @@ function ConvertTo-PlainTextToken {
   return [string]$TokenValue
 }
 
+function Get-AzureDevOpsAccessToken {
+  param(
+    [Parameter(Mandatory = $false)]
+    [string]$TenantId
+  )
+
+  $cliToken = Get-AzCliAccessToken -Resource '499b84ac-1321-427f-aa17-267ca6975798' -TenantId $TenantId
+  if (-not [string]::IsNullOrWhiteSpace($cliToken)) {
+    return $cliToken.Trim()
+  }
+
+  try {
+    $tokenParams = @{ ResourceUrl = '499b84ac-1321-427f-aa17-267ca6975798' }
+    if (-not [string]::IsNullOrWhiteSpace($TenantId)) {
+      $tokenParams['TenantId'] = $TenantId
+    }
+    $tokenResponse = Get-AzAccessToken @tokenParams
+    $azToken = ConvertTo-PlainTextToken -TokenValue $tokenResponse.Token
+    if (-not [string]::IsNullOrWhiteSpace($azToken)) {
+      return $azToken.Trim()
+    }
+  }
+  catch {
+    Write-Verbose "Azure PowerShell Azure DevOps token acquisition failed: $($_.Exception.Message)"
+  }
+
+  throw 'Could not acquire an Azure DevOps token. Ensure the selected Azure CLI or Azure PowerShell account is authenticated for the target tenant.'
+}
+
+function Invoke-AdoRestMethod {
+  param(
+    [Parameter(Mandatory = $true)]
+    [ValidateSet('GET', 'POST', 'PUT', 'PATCH', 'DELETE')]
+    [string]$Method,
+
+    [Parameter(Mandatory = $true)]
+    [string]$Uri,
+
+    [Parameter(Mandatory = $false)]
+    [string]$Payload,
+
+    [Parameter(Mandatory = $false)]
+    [string]$TenantId
+  )
+
+  $token = Get-AzureDevOpsAccessToken -TenantId $TenantId
+  $invokeParams = @{
+    Method  = $Method
+    Uri     = $Uri
+    Headers = @{ Authorization = "Bearer $token" }
+  }
+  if ($PSBoundParameters.ContainsKey('Payload') -and $null -ne $Payload) {
+    $invokeParams['Body'] = $Payload
+    $invokeParams['ContentType'] = 'application/json'
+  }
+
+  $responseStatus = 0
+  $response = Invoke-RestMethod @invokeParams -SkipHttpErrorCheck -StatusCodeVariable responseStatus
+  $content = if ($null -eq $response) {
+    ''
+  }
+  elseif ($response -is [string]) {
+    $response
+  }
+  else {
+    $response | ConvertTo-Json -Depth 50
+  }
+
+  return [pscustomobject]@{
+    StatusCode = [int]$responseStatus
+    Content    = $content
+  }
+}
+
 function Test-RequiredValue {
   param(
     [Parameter(Mandatory = $true)]
@@ -171,14 +245,15 @@ function Test-AdoServiceConnectionAuthorizedForPipelines {
     [string]$ServiceConnectionId,
 
     [Parameter(Mandatory = $true)]
-    [string]$ServiceConnectionName
+    [string]$ServiceConnectionName,
+
+    [Parameter(Mandatory = $false)]
+    [string]$TenantId
   )
 
   $projectEncoded = [System.Uri]::EscapeDataString($Project)
   $permissionsUri = "https://dev.azure.com/$Organization/$projectEncoded/_apis/pipelines/pipelinePermissions/endpoint/$($ServiceConnectionId)?api-version=7.1-preview.1"
-  $adoResourceId = '499b84ac-1321-427f-aa17-267ca6975798'
-
-  $existingResponse = Invoke-AzRestMethod -Method GET -Uri $permissionsUri -ResourceId $adoResourceId
+  $existingResponse = Invoke-AdoRestMethod -Method GET -Uri $permissionsUri -TenantId $TenantId
   if (-not [string]::IsNullOrWhiteSpace($existingResponse.Content)) {
     $existingPayload = $existingResponse.Content | ConvertFrom-Json
     if ($existingPayload -and $existingPayload.PSObject.Properties['allPipelines']) {
@@ -197,9 +272,9 @@ function Test-AdoServiceConnectionAuthorizedForPipelines {
     pipelines = @()
   } | ConvertTo-Json -Depth 10 -Compress
 
-  Invoke-AzRestMethod -Method PATCH -Uri $permissionsUri -ResourceId $adoResourceId -Payload $patchBody | Out-Null
+  Invoke-AdoRestMethod -Method PATCH -Uri $permissionsUri -TenantId $TenantId -Payload $patchBody | Out-Null
 
-  $verifiedResponse = Invoke-AzRestMethod -Method GET -Uri $permissionsUri -ResourceId $adoResourceId
+  $verifiedResponse = Invoke-AdoRestMethod -Method GET -Uri $permissionsUri -TenantId $TenantId
   $verifiedAuthorized = $false
   if (-not [string]::IsNullOrWhiteSpace($verifiedResponse.Content)) {
     $verifiedPayload = $verifiedResponse.Content | ConvertFrom-Json
@@ -230,14 +305,15 @@ function Set-AdoRepositoryAuthorizedForPipelines {
     [string]$RepositoryId,
 
     [Parameter(Mandatory = $true)]
-    [string]$RepositoryName
+    [string]$RepositoryName,
+
+    [Parameter(Mandatory = $false)]
+    [string]$TenantId
   )
 
   $projectEncoded = [System.Uri]::EscapeDataString($Project)
   $permissionsUri = "https://dev.azure.com/$Organization/$projectEncoded/_apis/pipelines/pipelinePermissions/repository/$($ProjectId).$($RepositoryId)?api-version=7.1-preview.1"
-  $adoResourceId = '499b84ac-1321-427f-aa17-267ca6975798'
-
-  $existingResponse = Invoke-AzRestMethod -Method GET -Uri $permissionsUri -ResourceId $adoResourceId
+  $existingResponse = Invoke-AdoRestMethod -Method GET -Uri $permissionsUri -TenantId $TenantId
   if (-not [string]::IsNullOrWhiteSpace($existingResponse.Content)) {
     $existingPayload = $existingResponse.Content | ConvertFrom-Json
     if ($existingPayload -and $existingPayload.PSObject.Properties['allPipelines']) {
@@ -256,7 +332,7 @@ function Set-AdoRepositoryAuthorizedForPipelines {
     pipelines   = @()
   } | ConvertTo-Json -Depth 10 -Compress
 
-  Invoke-AzRestMethod -Method PATCH -Uri $permissionsUri -ResourceId $adoResourceId -Payload $patchBody | Out-Null
+  Invoke-AdoRestMethod -Method PATCH -Uri $permissionsUri -TenantId $TenantId -Payload $patchBody | Out-Null
 }
 
 function Test-AzureRoleAssignment {
@@ -633,11 +709,27 @@ if ($existingContext -and $existingContext.Subscription -and $existingContext.Su
 }
 
 if ($requiresLogin) {
-  $connectParameters = @{ Subscription = $SubscriptionId }
-  if ($TenantId) {
-    $connectParameters['Tenant'] = $TenantId
+  $managementToken = Get-AzCliAccessToken -Resource 'https://management.azure.com/' -TenantId $TenantId
+  if (-not [string]::IsNullOrWhiteSpace($managementToken)) {
+    $accountId = (& az account show --subscription $SubscriptionId --query user.name -o tsv 2>$null)
+    if ([string]::IsNullOrWhiteSpace($accountId)) {
+      $accountId = 'azure-cli'
+    }
+
+    Connect-AzAccount `
+      -AccessToken $managementToken `
+      -AccountId $accountId `
+      -Tenant $TenantId `
+      -Subscription $SubscriptionId `
+      -SkipContextPopulation | Out-Null
   }
-  Connect-AzAccount @connectParameters | Out-Null
+  else {
+    $connectParameters = @{ Subscription = $SubscriptionId }
+    if ($TenantId) {
+      $connectParameters['Tenant'] = $TenantId
+    }
+    Connect-AzAccount @connectParameters | Out-Null
+  }
 }
 
 $currentContext = Get-AzContext
@@ -656,8 +748,7 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($subscriptionName)) {
 }
 
 Write-Host 'Connecting to Azure DevOps with ADOPS and OAuth token...'
-$devOpsTokenResponse = Get-AzAccessToken -ResourceUrl '499b84ac-1321-427f-aa17-267ca6975798'
-$devOpsToken = ConvertTo-PlainTextToken -TokenValue $devOpsTokenResponse.Token
+$devOpsToken = Get-AzureDevOpsAccessToken -TenantId $TenantId
 Connect-ADOPS -Organization $AdoOrganization -OAuthToken $devOpsToken -SkipVerification | Out-Null
 
 $projectInfo = Get-ADOPSProject -Name $AdoProject -Organization $AdoOrganization
@@ -719,7 +810,8 @@ if (-not [string]::IsNullOrWhiteSpace($projectId)) {
     -Project $AdoProject `
     -ProjectId $projectId `
     -RepositoryId $repositoryId `
-    -RepositoryName $AdoRepositoryName
+    -RepositoryName $AdoRepositoryName `
+    -TenantId $TenantId
 }
 
 $serviceConnection = $null
@@ -895,7 +987,8 @@ $serviceConnectionAuthorized = Test-AdoServiceConnectionAuthorizedForPipelines `
   -Organization $AdoOrganization `
   -Project $AdoProject `
   -ServiceConnectionId $serviceConnectionId `
-  -ServiceConnectionName $AdoServiceConnectionName
+  -ServiceConnectionName $AdoServiceConnectionName `
+  -TenantId $TenantId
 
 Set-AzdEnvValue -Name 'AZDO_SERVICE_CONNECTION_AUTHORIZED' -Value $serviceConnectionAuthorized.ToString().ToLower()
 Set-AzdEnvValue -Name 'AZDO_ORGANIZATION' -Value $AdoOrganization
