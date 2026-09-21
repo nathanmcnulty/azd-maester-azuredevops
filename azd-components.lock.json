@@ -3,9 +3,9 @@
   "components": [
     {
       "id": "maester-azd-hooks",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "sourceRepository": "https://github.com/nathanmcnulty/azd-reference",
-      "sourceRevision": "fd77b86e82cf0c37d26eb500201177887a8fd76b",
+      "sourceRevision": "b07e3ff6c3ec88d7fb429b21ea2ae2f485d7b515",
       "files": [
         {
           "source": "components/powershell/maester-azd-hooks/Get-ManagedIdentityPrincipal.ps1",
@@ -40,7 +40,7 @@
         {
           "source": "components/powershell/maester-azd-hooks/Maester-SetupHelpers.psm1",
           "target": "scripts/vendor/Azd.MaesterHooks/Maester-SetupHelpers.psm1",
-          "sha256": "2e005c4b6043f8cb7f19df82be2b03b596e7e9d8d8230a7b66a7daef2e8f43b3"
+          "sha256": "cb5961df81193b37274d2f30989cbde49d4926882f9e93ecc086cf3d7bc5bf45"
         },
         {
           "source": "components/powershell/maester-azd-hooks/Maester-UpWizard.psm1",
