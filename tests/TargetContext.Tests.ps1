@@ -1,10 +1,14 @@
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$scriptFiles = Get-ChildItem -LiteralPath $repoRoot -Recurse -File -Include *.ps1, *.psm1 |
+$scriptFiles = Get-ChildItem -LiteralPath (Split-Path -Parent $PSScriptRoot) -Recurse -File -Include *.ps1, *.psm1 |
   Where-Object { $_.FullName -notmatch '[\\/](?:\.git|tests)[\\/]' }
 
-Import-Module (Join-Path $repoRoot 'scripts\vendor\Azd.MaesterHooks\Maester-SetupHelpers.psm1') -Force
+Import-Module (Join-Path $repoRoot 'scripts/vendor/Azd.MaesterHooks/Maester-SetupHelpers.psm1') -Force
 
 Describe 'Azure CLI target context' {
+  BeforeAll {
+    $repoRoot = Split-Path -Parent $PSScriptRoot
+  }
+
   It 'does not mutate the global default subscription' {
     $matches = $scriptFiles | Select-String -Pattern '\baz account set\b'
     $matches | Should -BeNullOrEmpty
@@ -15,6 +19,12 @@ Describe 'Azure CLI target context' {
     foreach ($match in $matches) {
       $match.Line | Should -Match '--(?:subscription|tenant)\b'
     }
+  }
+
+  It 'requests only the Azure DevOps access token for pipeline validation' {
+    $validator = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'scripts\Invoke-PipelineValidation.ps1')
+
+    $validator | Should -Match "'--query',\s*'accessToken'"
   }
 
   It 'targets every Azure CLI REST request explicitly' {
@@ -50,5 +60,25 @@ Describe 'Selected subscription validation' {
           -TenantId '33333333-3333-3333-3333-333333333333'
       } | Should -Throw '*belongs to tenant*'
     }
+  }
+}
+
+Describe 'Azure DevOps repository ownership' {
+  BeforeAll {
+    $repoRoot = Split-Path -Parent $PSScriptRoot
+  }
+
+  It 'records whether setup created the repository' {
+    $setup = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'scripts\Setup-PostDeploy.ps1')
+
+    $setup | Should -Match "AZDO_REPOSITORY_CREATED"
+    $setup | Should -Match '\$repositoryCreatedByEnvironment\s*=\s*\$true'
+  }
+
+  It 'preserves repositories that were not created by the environment' {
+    $cleanup = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'scripts\vendor\Azd.MaesterHooks\Maester-PreDownCleanup.psm1')
+
+    $cleanup | Should -Match '\$adoRepositoryCreated\s*=.*AZDO_REPOSITORY_CREATED'
+    $cleanup | Should -Match 'Preserving Azure DevOps repository'
   }
 }

@@ -51,6 +51,10 @@ For non-interactive runs (`azd up --no-prompt`), if `AZURE_RESOURCE_GROUP` is se
 - Renders and pushes pipeline files to Azure Repos.
 - Creates or reuses pipeline and validates first run (default enabled).
 
+When an existing empty repository is reused, teardown preserves that repository
+and its files. A repository created by the current environment is tracked and
+removed by `azd down`.
+
 ## Permission lifecycle
 
 - Toggling an option from `Yes` to `No` in a later `azd up` run is additive only and does **not** revoke prior assignments.
@@ -81,6 +85,9 @@ The Azure DevOps identity used for setup must have Code access in the organizati
 - Entra workload identity app registration
 - Easy Auth Entra app (if created)
 - Tracked Teams/Exchange/Azure role assignments created during setup
+
+Pre-existing or reused Azure DevOps repositories are intentionally preserved;
+only a repository created by the current environment is removed.
 
 ## Notes
 
