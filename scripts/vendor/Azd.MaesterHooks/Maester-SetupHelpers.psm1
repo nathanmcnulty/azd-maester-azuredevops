@@ -174,13 +174,18 @@ function Get-AzCliAccessToken {
     [Parameter(Mandatory = $true)]
     [string]$Resource,
     [Parameter(Mandatory = $false)]
-    [string]$TenantId
+    [string]$TenantId,
+    [Parameter(Mandatory = $false)]
+    [string]$SubscriptionId
   )
 
   try {
     $tokenArgs = @('account', 'get-access-token', '--resource', $Resource, '-o', 'json')
     if (-not [string]::IsNullOrWhiteSpace($TenantId)) {
       $tokenArgs += @('--tenant', $TenantId)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($SubscriptionId)) {
+      $tokenArgs += @('--subscription', $SubscriptionId)
     }
 
     $tokenJson = (& az @tokenArgs 2>$null)
