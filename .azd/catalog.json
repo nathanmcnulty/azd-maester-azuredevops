@@ -1,0 +1,21 @@
+{
+  "title": "Maester Azure DevOps Monitoring",
+  "summary": "Run scheduled Microsoft 365 security checks through Azure DevOps Pipelines and publish reports to Azure storage.",
+  "tags": [
+    "Maester",
+    "Microsoft 365",
+    "Azure DevOps",
+    "Security Monitoring"
+  ],
+  "highlights": [
+    "Runs scheduled Maester checks in Azure DevOps Pipelines",
+    "Stores compressed history with a latest-report pointer",
+    "Supports optional web portal and extended permission checks",
+    "Uses workload identity federation instead of stored secrets"
+  ],
+  "solutionCount": 1,
+  "quickstartCommands": [
+    "azd init -t nathanmcnulty/azd-maester-azuredevops",
+    "azd up"
+  ]
+}
