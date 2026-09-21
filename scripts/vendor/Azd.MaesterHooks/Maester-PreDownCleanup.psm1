@@ -363,24 +363,29 @@ function Remove-AdoServiceConnectionById {
   }
   $deleteUris += "https://dev.azure.com/$Organization/$ProjectEncoded/_apis/serviceendpoint/endpoints/$($ServiceConnectionId)?api-version=7.1-preview.4"
 
+  $verificationUri = "https://dev.azure.com/$Organization/$ProjectEncoded/_apis/serviceendpoint/endpoints/$($ServiceConnectionId)?api-version=7.1-preview.4"
+  $maxDeleteAttempts = 6
+  $retryDelaySeconds = 5
   foreach ($deleteUri in @($deleteUris | Select-Object -Unique)) {
-    try {
-      Invoke-AdoRest -SubscriptionId $SubscriptionId -Method DELETE -Uri $deleteUri -AllowNotFound | Out-Null
-      $verificationUri = "https://dev.azure.com/$Organization/$ProjectEncoded/_apis/serviceendpoint/endpoints/$($ServiceConnectionId)?api-version=7.1-preview.4"
-      $maxVerifyAttempts = 6
-      for ($attempt = 1; $attempt -le $maxVerifyAttempts; $attempt++) {
+    for ($attempt = 1; $attempt -le $maxDeleteAttempts; $attempt++) {
+      try {
+        # Azure DevOps can keep an endpoint visible briefly while a deleted
+        # pipeline releases it. Reissue DELETE so the cleanup converges after
+        # that asynchronous transition instead of only polling stale state.
+        Invoke-AdoRest -SubscriptionId $SubscriptionId -Method DELETE -Uri $deleteUri -AllowNotFound | Out-Null
         $verification = Invoke-AdoRest -SubscriptionId $SubscriptionId -Method GET -Uri $verificationUri -AllowNotFound
         if ($null -eq $verification) {
           return $true
         }
-
-        if ($attempt -lt $maxVerifyAttempts) {
-          Start-Sleep -Seconds 5
-        }
+        Write-Verbose "Azure DevOps service connection '$ServiceConnectionId' is still present after delete attempt $attempt."
       }
-    }
-    catch {
-      Write-Verbose ("Service connection delete attempt failed for URI '{0}'. Error: {1}" -f $deleteUri, $_.Exception.Message)
+      catch {
+        Write-Verbose ("Service connection delete attempt {0} failed for URI '{1}'. Error: {2}" -f $attempt, $deleteUri, $_.Exception.Message)
+      }
+
+      if ($attempt -lt $maxDeleteAttempts) {
+        Start-Sleep -Seconds $retryDelaySeconds
+      }
     }
   }
 
