@@ -757,6 +757,9 @@ if (-not $projectInfo) {
 }
 
 $requestedRepositoryName = $AdoRepositoryName
+$repositoryCreatedByEnvironment = ConvertTo-BoolOrDefault `
+  -Value (Get-EnvValue -Lines $envLines -Name 'AZDO_REPOSITORY_CREATED') `
+  -Default $false
 $repository = $null
 try {
   $repository = Get-ADOPSRepository -Project $AdoProject -Repository $AdoRepositoryName -Organization $AdoOrganization -ErrorAction Stop
@@ -789,6 +792,7 @@ if (-not $repository) {
   else {
     Write-Host "Creating Azure DevOps repository '$AdoRepositoryName'..."
     $repository = New-ADOPSRepository -Name $AdoRepositoryName -Project $AdoProject -Organization $AdoOrganization
+    $repositoryCreatedByEnvironment = $true
   }
 }
 
@@ -996,6 +1000,7 @@ Set-AzdEnvValue -Name 'AZDO_PROJECT' -Value $AdoProject
 Set-AzdEnvValue -Name 'AZDO_REPOSITORY' -Value $AdoRepositoryName
 Set-AzdEnvValue -Name 'AZDO_REPOSITORY_ID' -Value $repositoryId
 Set-AzdEnvValue -Name 'AZDO_REPOSITORY_URL' -Value $repositoryUrl
+Set-AzdEnvValue -Name 'AZDO_REPOSITORY_CREATED' -Value $repositoryCreatedByEnvironment.ToString().ToLower()
 Set-AzdEnvValue -Name 'AZDO_SERVICE_CONNECTION_NAME' -Value $AdoServiceConnectionName
 Set-AzdEnvValue -Name 'AZDO_SERVICE_CONNECTION_ID' -Value $serviceConnectionId
 Set-AzdEnvValue -Name 'AZDO_WORKLOAD_APP_ID' -Value $aadApplication.AppId

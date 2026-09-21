@@ -431,6 +431,10 @@ function Invoke-MaesterAzureDevOpsPreDownCleanup {
   $adoProject = Get-AzdEnvironmentValue -Values $envValues -Name 'AZDO_PROJECT'
   $adoRepositoryName = Get-AzdEnvironmentValue -Values $envValues -Name 'AZDO_REPOSITORY'
   $adoRepositoryId = Get-AzdEnvironmentValue -Values $envValues -Name 'AZDO_REPOSITORY_ID'
+  # Older environments and repositories reused from an existing project do not
+  # prove ownership. Only delete a repository when setup recorded that this
+  # environment created it.
+  $adoRepositoryCreated = (Get-AzdEnvironmentValue -Values $envValues -Name 'AZDO_REPOSITORY_CREATED') -eq 'true'
   $adoPipelineName = Get-AzdEnvironmentValue -Values $envValues -Name 'AZDO_PIPELINE_NAME'
   $adoPipelineId = Get-AzdEnvironmentValue -Values $envValues -Name 'AZDO_PIPELINE_ID'
   $adoServiceConnectionName = Get-AzdEnvironmentValue -Values $envValues -Name 'AZDO_SERVICE_CONNECTION_NAME'
@@ -560,11 +564,11 @@ function Invoke-MaesterAzureDevOpsPreDownCleanup {
         }
       }
 
-      if (-not [string]::IsNullOrWhiteSpace($adoRepositoryId)) {
+      if ($adoRepositoryCreated -and -not [string]::IsNullOrWhiteSpace($adoRepositoryId)) {
         Write-Host "Removing Azure DevOps repository '$adoRepositoryName' ($adoRepositoryId)..."
         Invoke-AdoRest -SubscriptionId $subscriptionId -Method DELETE -Uri "https://dev.azure.com/$adoOrganization/$adoProjectEncoded/_apis/git/repositories/$($adoRepositoryId)?api-version=7.1-preview.1" | Out-Null
       }
-      elseif (-not [string]::IsNullOrWhiteSpace($adoRepositoryName)) {
+      elseif ($adoRepositoryCreated -and -not [string]::IsNullOrWhiteSpace($adoRepositoryName)) {
         try {
           $repos = Invoke-AdoRest -SubscriptionId $subscriptionId -Method GET -Uri "https://dev.azure.com/$adoOrganization/$adoProjectEncoded/_apis/git/repositories?api-version=7.1-preview.1"
           $repo = @($repos.value | Where-Object { $_.name -eq $adoRepositoryName } | Select-Object -First 1)
@@ -575,6 +579,9 @@ function Invoke-MaesterAzureDevOpsPreDownCleanup {
         }
         catch {
         }
+      }
+      elseif (-not [string]::IsNullOrWhiteSpace($adoRepositoryName)) {
+        Write-Host "Preserving Azure DevOps repository '$adoRepositoryName' because it was not created by this environment."
       }
     }
     catch {
