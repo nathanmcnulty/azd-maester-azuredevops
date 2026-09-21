@@ -708,28 +708,31 @@ if ($existingContext -and $existingContext.Subscription -and $existingContext.Su
   }
 }
 
-if ($requiresLogin) {
-  $managementToken = Get-AzCliAccessToken -Resource 'https://management.azure.com/' -TenantId $TenantId
-  if (-not [string]::IsNullOrWhiteSpace($managementToken)) {
-    $accountId = (& az account show --subscription $SubscriptionId --query user.name -o tsv 2>$null)
-    if ([string]::IsNullOrWhiteSpace($accountId)) {
-      $accountId = 'azure-cli'
-    }
+$managementToken = Get-AzCliAccessToken `
+  -Resource 'https://management.azure.com/' `
+  -TenantId $TenantId `
+  -SubscriptionId $SubscriptionId
+if (-not [string]::IsNullOrWhiteSpace($managementToken)) {
+  # Refresh Az PowerShell from the target Azure CLI session so an expired
+  # cached Az context cannot block post-provision setup.
+  $accountId = (& az account show --subscription $SubscriptionId --query user.name -o tsv 2>$null)
+  if ([string]::IsNullOrWhiteSpace($accountId)) {
+    $accountId = 'azure-cli'
+  }
 
-    Connect-AzAccount `
-      -AccessToken $managementToken `
-      -AccountId $accountId `
-      -Tenant $TenantId `
-      -Subscription $SubscriptionId `
-      -SkipContextPopulation | Out-Null
+  Connect-AzAccount `
+    -AccessToken $managementToken `
+    -AccountId $accountId `
+    -Tenant $TenantId `
+    -Subscription $SubscriptionId `
+    -SkipContextPopulation | Out-Null
+}
+elseif ($requiresLogin) {
+  $connectParameters = @{ Subscription = $SubscriptionId }
+  if ($TenantId) {
+    $connectParameters['Tenant'] = $TenantId
   }
-  else {
-    $connectParameters = @{ Subscription = $SubscriptionId }
-    if ($TenantId) {
-      $connectParameters['Tenant'] = $TenantId
-    }
-    Connect-AzAccount @connectParameters | Out-Null
-  }
+  Connect-AzAccount @connectParameters | Out-Null
 }
 
 $currentContext = Get-AzContext

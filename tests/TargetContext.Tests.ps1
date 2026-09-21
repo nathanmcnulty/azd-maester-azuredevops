@@ -33,6 +33,16 @@ Describe 'Azure CLI target context' {
       $match.Line | Should -Match '(?:--subscription\b|@subscriptionArgs\b)'
     }
   }
+
+  It 'refreshes a stale Az PowerShell context from the target Azure CLI token' {
+    $setup = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'scripts\Setup-PostDeploy.ps1')
+
+    $setup | Should -Match 'Get-AzCliAccessToken'
+    $setup | Should -Match 'https://management.azure.com/'
+    $setup | Should -Match '-SubscriptionId \$SubscriptionId'
+    $setup | Should -Match '\$managementToken\s*=\s*Get-AzCliAccessToken'
+    $setup | Should -Match '-AccessToken \$managementToken'
+  }
 }
 
 Describe 'Selected subscription validation' {
