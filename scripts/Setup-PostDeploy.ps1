@@ -564,7 +564,9 @@ if (-not (Test-ModuleAvailable -ModuleName 'ADOPS' -InstallMessage $adopsInstall
 
 $envLines = @{}
 try {
-  $envLines = (& azd env get-values --output json 2>$null | ConvertFrom-Json -AsHashtable)
+  $initialEnvArgs = @('env', 'get-values', '--output', 'json')
+  if ($EnvironmentName) { $initialEnvArgs += @('-e', $EnvironmentName) }
+  $envLines = (& azd @initialEnvArgs 2>$null | ConvertFrom-Json -AsHashtable)
 }
 catch {
   $envLines = @{}
@@ -750,6 +752,15 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($subscriptionName)) {
   }
 }
 
+. (Join-Path $PSScriptRoot 'Resolve-DeploymentTargets.ps1')
+$deploymentValues = Get-MaesterDeploymentValues -EnvironmentName $EnvironmentName -SubscriptionId $SubscriptionId -ResourceGroupName $ResourceGroupName
+$targets = Resolve-MaesterDeploymentTargets -EnvironmentValues $deploymentValues -SubscriptionId $SubscriptionId -ResourceGroupName $ResourceGroupName -EnvironmentName $EnvironmentName -SolutionName 'azure-devops' -GetResource {
+  param($path)
+  (Invoke-AzRestMethod -Method GET -Path $path).Content | ConvertFrom-Json
+}
+$storageResource = $targets.StorageAccount
+$webAppResource = $targets.WebApp
+
 Write-Host 'Connecting to Azure DevOps with ADOPS and OAuth token...'
 $devOpsToken = Get-AzureDevOpsAccessToken -TenantId $TenantId
 Connect-ADOPS -Organization $AdoOrganization -OAuthToken $devOpsToken -SkipVerification | Out-Null
@@ -869,18 +880,17 @@ $aadApplication = $null
 if (-not [string]::IsNullOrWhiteSpace($appRegistrationAppId)) {
   try {
     $appByIdResponse = Invoke-MgGraphRequest -Method GET -Uri "https://graph.microsoft.com/v1.0/applications?`$filter=appId eq '$appRegistrationAppId'&`$select=id,appId,displayName"
-    $appByIdMatches = @($appByIdResponse.value)
-    if ($appByIdMatches.Count -gt 0) {
-      $appById = $appByIdMatches[0]
-      $aadApplication = [pscustomobject]@{
-        Id          = $appById.id
-        AppId       = $appById.appId
-        DisplayName = $appById.displayName
-      }
-    }
   }
   catch {
-    $aadApplication = $null
+    throw 'Could not look up the service connection Entra application by its appId.'
+  }
+  $appById = Select-UniqueMaesterApplication -Response $appByIdResponse -DisplayName $appRegistrationAppId
+  if ($appById) {
+    $aadApplication = [pscustomobject]@{
+      Id          = $appById.id
+      AppId       = $appById.appId
+      DisplayName = $appById.displayName
+    }
   }
 }
 
@@ -890,18 +900,15 @@ if ($aadApplication -and -not [string]::IsNullOrWhiteSpace($aadApplication.Displ
 }
 
 if (-not $aadApplication) {
-  $existingApps = @()
   try {
     $displayNameFilterValue = $workloadIdentityDisplayName -replace "'", "''"
     $existingAppsResponse = Invoke-MgGraphRequest -Method GET -Uri "https://graph.microsoft.com/v1.0/applications?`$filter=displayName eq '$displayNameFilterValue'&`$select=id,appId,displayName"
-    $existingApps = @($existingAppsResponse.value)
   }
   catch {
-    $existingApps = @()
+    throw "Could not look up the Entra application '$workloadIdentityDisplayName' by display name."
   }
-
-  if ($existingApps.Count -gt 0) {
-    $existingApp = $existingApps[0]
+  $existingApp = Select-UniqueMaesterApplication -Response $existingAppsResponse -DisplayName $workloadIdentityDisplayName
+  if ($existingApp) {
     $aadApplication = [pscustomobject]@{
       Id          = $existingApp.id
       AppId       = $existingApp.appId
@@ -997,29 +1004,19 @@ $serviceConnectionAuthorized = Test-AdoServiceConnectionAuthorizedForPipelines `
   -ServiceConnectionName $AdoServiceConnectionName `
   -TenantId $TenantId
 
-Set-AzdEnvValue -Name 'AZDO_SERVICE_CONNECTION_AUTHORIZED' -Value $serviceConnectionAuthorized.ToString().ToLower()
-Set-AzdEnvValue -Name 'AZDO_ORGANIZATION' -Value $AdoOrganization
-Set-AzdEnvValue -Name 'AZDO_PROJECT' -Value $AdoProject
-Set-AzdEnvValue -Name 'AZDO_REPOSITORY' -Value $AdoRepositoryName
-Set-AzdEnvValue -Name 'AZDO_REPOSITORY_ID' -Value $repositoryId
-Set-AzdEnvValue -Name 'AZDO_REPOSITORY_URL' -Value $repositoryUrl
-Set-AzdEnvValue -Name 'AZDO_REPOSITORY_CREATED' -Value $repositoryCreatedByEnvironment.ToString().ToLower()
-Set-AzdEnvValue -Name 'AZDO_SERVICE_CONNECTION_NAME' -Value $AdoServiceConnectionName
-Set-AzdEnvValue -Name 'AZDO_SERVICE_CONNECTION_ID' -Value $serviceConnectionId
-Set-AzdEnvValue -Name 'AZDO_WORKLOAD_APP_ID' -Value $aadApplication.AppId
-Set-AzdEnvValue -Name 'AZDO_WORKLOAD_APP_OBJECT_ID' -Value $aadApplication.Id
-Set-AzdEnvValue -Name 'AZDO_WORKLOAD_SERVICE_PRINCIPAL_OBJECT_ID' -Value $servicePrincipal.Id
-Set-AzdEnvValue -Name 'AZDO_WORKLOAD_IDENTITY_DISPLAY_NAME' -Value $workloadIdentityDisplayName
-
-$resourcesPath = "/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroupName/resources?api-version=2021-04-01"
-$resourcesPayload = (Invoke-AzRestMethod -Method GET -Path $resourcesPath).Content | ConvertFrom-Json
-$resources = @($resourcesPayload.value)
-
-$storageResource = $resources | Where-Object { $_.type -eq 'Microsoft.Storage/storageAccounts' } | Select-Object -First 1
-if (-not $storageResource) {
-  throw "Storage account was not found in resource group '$ResourceGroupName'."
-}
-$webAppResource = $resources | Where-Object { $_.type -eq 'Microsoft.Web/sites' } | Select-Object -First 1
+Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_SERVICE_CONNECTION_AUTHORIZED' -Value $serviceConnectionAuthorized.ToString().ToLower()
+Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_ORGANIZATION' -Value $AdoOrganization
+Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_PROJECT' -Value $AdoProject
+Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_REPOSITORY' -Value $AdoRepositoryName
+Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_REPOSITORY_ID' -Value $repositoryId
+Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_REPOSITORY_URL' -Value $repositoryUrl
+Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_REPOSITORY_CREATED' -Value $repositoryCreatedByEnvironment.ToString().ToLower()
+Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_SERVICE_CONNECTION_NAME' -Value $AdoServiceConnectionName
+Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_SERVICE_CONNECTION_ID' -Value $serviceConnectionId
+Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_WORKLOAD_APP_ID' -Value $aadApplication.AppId
+Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_WORKLOAD_APP_OBJECT_ID' -Value $aadApplication.Id
+Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_WORKLOAD_SERVICE_PRINCIPAL_OBJECT_ID' -Value $servicePrincipal.Id
+Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_WORKLOAD_IDENTITY_DISPLAY_NAME' -Value $workloadIdentityDisplayName
 
 # ──────────────────────────────────────────────
 # Storage Blob Data Reader for signed-in user
@@ -1089,7 +1086,7 @@ if ($webAppResource) {
   }
 }
 
-Set-AzdEnvJsonArray -Name 'AZDO_BASE_ROLE_ASSIGNMENT_IDS' -Values @($baseRoleAssignmentIds)
+Set-MaesterAzdEnvJsonArray -EnvironmentName $EnvironmentName -Name 'AZDO_BASE_ROLE_ASSIGNMENT_IDS' -Values @($baseRoleAssignmentIds)
 
 Write-Host 'Granting Microsoft Graph permissions for Maester...'
 $mailRecipientForGraph = if ($env:MAIL_RECIPIENT) { $env:MAIL_RECIPIENT.Trim() } else { '' }
@@ -1292,7 +1289,7 @@ if ($IncludeTeams -and $teamsSetupStatus -eq 'pending') {
     }
 
     if ($selectedTeamsRole) {
-      Set-AzdEnvValue -Name 'TEAMS_DIRECTORY_ROLE' -Value $selectedTeamsRole
+      Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'TEAMS_DIRECTORY_ROLE' -Value $selectedTeamsRole
     }
 
     $teamsSetupStatus = 'configured'
@@ -1336,14 +1333,14 @@ if ($IncludeAzure -and $azureSetupStatus -eq 'pending') {
   $azureSetupStatus = if ($succeededScopes -gt 0) { 'configured' } else { 'skipped' }
 }
 
-Set-AzdEnvValue -Name 'SETUP_EXCHANGE_STATUS' -Value $exchangeSetupStatus
-Set-AzdEnvValue -Name 'SETUP_TEAMS_STATUS' -Value $teamsSetupStatus
-Set-AzdEnvValue -Name 'SETUP_AZURE_STATUS' -Value $azureSetupStatus
-Set-AzdEnvJsonArray -Name 'EXO_APPROLE_ASSIGNMENT_IDS' -Values @($exoAppRoleAssignmentIds)
-Set-AzdEnvJsonArray -Name 'TEAMS_READER_ROLE_ASSIGNMENT_IDS' -Values @($teamsRoleAssignmentIds)
-Set-AzdEnvJsonArray -Name 'AZURE_ROLE_ASSIGNMENT_IDS' -Values @($azureRoleAssignmentIds)
+Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'SETUP_EXCHANGE_STATUS' -Value $exchangeSetupStatus
+Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'SETUP_TEAMS_STATUS' -Value $teamsSetupStatus
+Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'SETUP_AZURE_STATUS' -Value $azureSetupStatus
+Set-MaesterAzdEnvJsonArray -EnvironmentName $EnvironmentName -Name 'EXO_APPROLE_ASSIGNMENT_IDS' -Values @($exoAppRoleAssignmentIds)
+Set-MaesterAzdEnvJsonArray -EnvironmentName $EnvironmentName -Name 'TEAMS_READER_ROLE_ASSIGNMENT_IDS' -Values @($teamsRoleAssignmentIds)
+Set-MaesterAzdEnvJsonArray -EnvironmentName $EnvironmentName -Name 'AZURE_ROLE_ASSIGNMENT_IDS' -Values @($azureRoleAssignmentIds)
 if ($exoServicePrincipalDisplayName) {
-  Set-AzdEnvValue -Name 'EXO_SERVICE_PRINCIPAL_DISPLAY_NAME' -Value $exoServicePrincipalDisplayName
+  Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'EXO_SERVICE_PRINCIPAL_DISPLAY_NAME' -Value $exoServicePrincipalDisplayName
 }
 $includeWebApp = [bool]$webAppResource
 if ($includeWebApp) {
@@ -1448,9 +1445,9 @@ if ($includeWebApp) {
     Invoke-MgGraphRequest -Method POST -Uri 'https://graph.microsoft.com/v1.0/applications' -Body $createAppBody -ContentType 'application/json'
   }
 
-  Set-AzdEnvValue -Name 'EASY_AUTH_ENTRA_APP_OBJECT_ID' -Value $aadApp.id
-  Set-AzdEnvValue -Name 'EASY_AUTH_ENTRA_APP_CLIENT_ID' -Value $aadApp.appId
-  Set-AzdEnvValue -Name 'EASY_AUTH_ENTRA_APP_DISPLAY_NAME' -Value $aadApp.displayName
+  Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'EASY_AUTH_ENTRA_APP_OBJECT_ID' -Value $aadApp.id
+  Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'EASY_AUTH_ENTRA_APP_CLIENT_ID' -Value $aadApp.appId
+  Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'EASY_AUTH_ENTRA_APP_DISPLAY_NAME' -Value $aadApp.displayName
 
   $servicePrincipalResponse = Invoke-MgGraphRequest -Method GET -Uri "https://graph.microsoft.com/v1.0/servicePrincipals?`$filter=appId eq '$($aadApp.appId)'"
   $easyAuthServicePrincipal = $null
@@ -1640,13 +1637,13 @@ if (-not $PushPipelineFiles) {
   Write-Host 'PushPipelineFiles=false, skipping automatic repository push.'
 }
 
-Set-AzdEnvValue -Name 'AZDO_PIPELINE_FILES_PUSHED' -Value $pushResult.Pushed.ToString().ToLower()
-Set-AzdEnvValue -Name 'AZDO_FAIL_ON_TEST_FAILURES' -Value $FailOnTestFailures.ToString().ToLower()
+Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_PIPELINE_FILES_PUSHED' -Value $pushResult.Pushed.ToString().ToLower()
+Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_FAIL_ON_TEST_FAILURES' -Value $FailOnTestFailures.ToString().ToLower()
 if ($manualFilesPath) {
-  Set-AzdEnvValue -Name 'AZDO_MANUAL_PIPELINE_FILES_PATH' -Value $manualFilesPath
+  Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_MANUAL_PIPELINE_FILES_PATH' -Value $manualFilesPath
 }
 else {
-  Set-AzdEnvValue -Name 'AZDO_MANUAL_PIPELINE_FILES_PATH' -Value ''
+  Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_MANUAL_PIPELINE_FILES_PATH' -Value ''
 }
 
 $pipeline = $null
@@ -1669,11 +1666,11 @@ if (-not $pipeline) {
   }
 }
 
-Set-AzdEnvValue -Name 'AZDO_PIPELINE_NAME' -Value $AdoPipelineName
-Set-AzdEnvValue -Name 'AZDO_PIPELINE_ID' -Value ([string]$pipeline.id)
+Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_PIPELINE_NAME' -Value $AdoPipelineName
+Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_PIPELINE_ID' -Value ([string]$pipeline.id)
 
 $pipelineUrl = "https://dev.azure.com/$AdoOrganization/$AdoProject/_build?definitionId=$($pipeline.id)"
-Set-AzdEnvValue -Name 'AZDO_PIPELINE_URL' -Value $pipelineUrl
+Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_PIPELINE_URL' -Value $pipelineUrl
 
 $validationResult = [pscustomobject]@{
   ValidationPassed = 'skipped'
@@ -1698,9 +1695,9 @@ if ($ValidatePipelineRun) {
     -TenantId $TenantId `
     -PassThru
 
-  Set-AzdEnvValue -Name 'AZDO_LAST_PIPELINE_RUN_ID' -Value ([string]$validationResult.RunId)
+  Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_LAST_PIPELINE_RUN_ID' -Value ([string]$validationResult.RunId)
   if ($validationResult.RunUrl) {
-    Set-AzdEnvValue -Name 'AZDO_LAST_PIPELINE_RUN_URL' -Value $validationResult.RunUrl
+    Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_LAST_PIPELINE_RUN_URL' -Value $validationResult.RunUrl
   }
 }
 $summaryDir = Join-Path -Path $projectRoot -ChildPath 'outputs'
