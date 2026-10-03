@@ -91,6 +91,7 @@ only a repository created by the current environment is removed.
 
 ## Notes
 
+- For a manual postprovision retry, select the same azd environment after a successful provision. Setup binds the exact `STORAGE_ACCOUNT_NAME`, `WEB_APP_NAME`, and `WEB_APP_ENABLED` deployment outputs and writes receipts back to that named environment. A false enablement output skips Web App setup even when other sites exist; missing or mismatched targets stop setup before Azure DevOps, Graph, or role changes.
 - This solution intentionally avoids secrets and certificates.
 - If automatic repository push fails, setup writes manual files to `outputs/<env>-pipeline-files`.
 - Setup summary is written to `outputs/<env>-setup-summary.md`.
