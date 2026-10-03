@@ -1551,6 +1551,8 @@ $pipelineRepoPath = $pipelineRepoPath.TrimStart('/')
 
 $templateContent = Get-Content -Path $pipelineTemplatePath -Raw
 $runnerScriptContent = Get-Content -Path (Join-Path -Path $PSScriptRoot -ChildPath 'Invoke-MaesterAzureDevOpsRun.ps1') -Raw
+$moduleInstallerContent = Get-Content -Path (Join-Path -Path $PSScriptRoot -ChildPath 'Install-LockedModules.ps1') -Raw
+$moduleLockContent = Get-Content -Path (Join-Path -Path $projectRoot -ChildPath 'runtime-packages.lock.json') -Raw
 
 $replacementMap = @{
   '__SERVICE_CONNECTION__' = $AdoServiceConnectionName
@@ -1564,6 +1566,7 @@ $replacementMap = @{
   '__WEB_APP_NAME__' = $(if ($webAppResource) { $webAppResource.name } else { '' })
   '__WEB_APP_RESOURCE_GROUP__' = $(if ($webAppResource) { $ResourceGroupName } else { '' })
   '__TENANT_ID__' = $TenantId
+  '__SUBSCRIPTION_ID__' = $SubscriptionId
   '__CLIENT_ID__' = $aadApplication.AppId
   '__MAIL_RECIPIENT__' = $(if ($env:MAIL_RECIPIENT) { $env:MAIL_RECIPIENT } else { '' })
   '__FAIL_ON_TEST_FAILURES__' = $FailOnTestFailures.ToString().ToLower()
@@ -1582,6 +1585,14 @@ $pipelineFiles = @(
   [pscustomobject]@{
     Path = 'scripts/Invoke-MaesterAzureDevOpsRun.ps1'
     Content = $runnerScriptContent
+  },
+  [pscustomobject]@{
+    Path = 'scripts/Install-LockedModules.ps1'
+    Content = $moduleInstallerContent
+  },
+  [pscustomobject]@{
+    Path = 'runtime-packages.lock.json'
+    Content = $moduleLockContent
   }
 )
 
