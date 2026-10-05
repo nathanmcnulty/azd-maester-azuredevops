@@ -1,0 +1,322 @@
+{
+  "schemaVersion": "1.0.0",
+  "repository": "nathanmcnulty/azd-maester-azuredevops",
+  "sourceRevision": "582697472d74247bb9345c75104b0b69d85e7355",
+  "capturedAt": "2026-10-04",
+  "items": [
+    {
+      "id": "MADO-001",
+      "title": "Reconcile this backlog with current source and active work",
+      "kind": "discovery",
+      "priority": "P1",
+      "status": "done",
+      "wave": 0,
+      "problem": "Plans and implementation evidence are spread across files; the captured source can change while other tasks work.",
+      "scope": [
+        "docs/backlog.json",
+        "docs/backlog.md",
+        "Existing roadmap, execution status, open issues and pull requests (read-only)"
+      ],
+      "acceptance": [
+        "Classify each candidate as implemented, still open, superseded or awaiting evidence; retain source links and reasons.",
+        "Inspect dirty state, remotes, worktrees and local environment presence without reading secrets; avoid duplicate work with active owners.",
+        "Resolve the actual offline validation commands and record exact current default-branch/working-tree provenance; do not copy historical live passes to newer code."
+      ],
+      "validation": [
+        "git status --short",
+        "git remote -v",
+        "git worktree list --porcelain",
+        "Read the applicable instructions and validation workflow; read gh issue list and gh pr list for the named repository using nathanmcnulty. Do not create or modify issues/PRs."
+      ],
+      "dependencies": [],
+      "authorization": "local-only",
+      "components": [],
+      "sources": [
+        "README.md"
+      ],
+      "evidence": [
+        "Reconciled later reviewed metadata tip 45ab981d03f8c0506a8b66bf7d93edd189fa5085 against freshly fetched origin/main 582697472d74247bb9345c75104b0b69d85e7355. Current main adds reviewed source fixes from pull request(s) #16; no dirty canonical bytes or unrelated branch history were copied.",
+        "Current repository issues and pull requests were read on 2026-10-04: none are open. Items MADO-002, MADO-003, MADO-005, MADO-006, MADO-007, MADO-008 remain proposed because their component, host-specific live, or shared azd-maester issue gates are not satisfied by source merges alone; completed issue-backed fixes retain exact issue and pull-request evidence.",
+        "Full current-source offline Pester validation passed 37/37 tests with zero failures. Canonical backlog schema and generated-Markdown checks also passed; no Azure, Graph, deployment, report publication or other live operation was performed."
+      ],
+      "blocker": null,
+      "claim": null
+    },
+    {
+      "id": "MADO-002",
+      "title": "Qualify Azure DevOps pipeline execution and optional report-webapp lifecycle",
+      "kind": "verification",
+      "priority": "P1",
+      "status": "proposed",
+      "wave": 2,
+      "problem": "Shared pilots are already vendored; host-specific execution and report access still need independently bound evidence.",
+      "scope": [
+        "scripts/Invoke-PipelineValidation.ps1",
+        "docs/",
+        "infra/",
+        "tests/TargetContext.Tests.ps1"
+      ],
+      "acceptance": [
+        "Record exact Maester/runtime/component revisions and host execution output under the selected tenant.",
+        "Validate optional webapp identity, report publishing, Easy Auth and feature-specific permission delta.",
+        "Disabled web hosting works independently; cleanup preserves adopted objects and records exact owned resources."
+      ],
+      "validation": [
+        "Invoke-Pester ./tests/TargetContext.Tests.ps1 -CI",
+        "After separate authorization use ./scripts/Invoke-PipelineValidation.ps1 against the exact owned host; retain report access and cleanup evidence."
+      ],
+      "dependencies": [],
+      "authorization": "azure-deployment",
+      "components": [
+        "maester-azd-hooks",
+        "maester-report-webapp"
+      ],
+      "sources": [
+        "README.md",
+        "scripts/Invoke-PipelineValidation.ps1"
+      ],
+      "evidence": [],
+      "blocker": null
+    },
+    {
+      "id": "MADO-003",
+      "title": "Reconcile shared hook/webapp versions and host permission deltas",
+      "kind": "maintenance",
+      "priority": "P2",
+      "status": "proposed",
+      "wave": 1,
+      "problem": "Existing adoption must be updated through hashes and host-specific validation rather than blindly reinstalling components.",
+      "scope": [
+        "azd-components.lock.json",
+        "azd-permissions.json",
+        "scripts/",
+        "infra/",
+        "docs/"
+      ],
+      "acceptance": [
+        "Compare lock pins with canonical manifests and current-source drift before proposing an update.",
+        "Run target-context negative cases and compare minimal versus optional-feature permissions.",
+        "Keep Maester execution and reporting host-specific; record exact source hashes and candidate/pilot status."
+      ],
+      "validation": [
+        "Invoke-Pester ./tests/TargetContext.Tests.ps1 -CI",
+        "Read and compare lock hashes with canonical reference source; do not overwrite drift."
+      ],
+      "dependencies": [],
+      "authorization": "local-only",
+      "components": [
+        "maester-azd-hooks",
+        "maester-report-webapp"
+      ],
+      "sources": [
+        "README.md",
+        "azd-components.lock.json"
+      ],
+      "evidence": [],
+      "blocker": null
+    },
+    {
+      "id": "MADO-004",
+      "title": "Validation treats mixed pipeline failures as successful Maester test findings",
+      "kind": "maintenance",
+      "priority": "P1",
+      "status": "done",
+      "wave": 1,
+      "problem": "The report captured on 2026-10-03 is closed after the reviewed fix merged; this record preserves the original trigger and validation boundary.",
+      "scope": [
+        "Paths and trigger cited in the linked issue",
+        "Focused offline regression tests",
+        "docs/",
+        "docs/backlog.json",
+        "docs/backlog.md",
+        "BACKLOG.md"
+      ],
+      "acceptance": [
+        "Classify the report as still reproducible, already fixed, superseded or requiring live evidence; record the exact current revision.",
+        "For a reproducible defect, demonstrate the linked trigger with an offline regression and apply the smallest fix preserving tenant/target/ownership and failure semantics.",
+        "For a feature, produce a bounded design with compatibility, optional permissions, acceptance and rollout gates before implementation; no live mutation or automatic issue closure."
+      ],
+      "validation": [
+        "Read the issue body and current source/PRs; capture the exact reproduction and existing registered offline validation command.",
+        "Use deterministic fixtures for the described trigger and negative boundary; retain current-source results. Do not rerun production or tenant operations to reproduce it."
+      ],
+      "dependencies": [],
+      "authorization": "local-only",
+      "components": [],
+      "sources": [
+        "https://github.com/nathanmcnulty/azd-maester-azuredevops/issues/12",
+        "README.md"
+      ],
+      "evidence": [
+        "Merged fix: https://github.com/nathanmcnulty/azd-maester-azuredevops/pull/14 closed issue #12 and is current main 67b9c6c91013fc4f6a0c05a0ffc252cba231ba15.",
+        "Current-head classifier accepts findings only when the Maester runner is the sole failed task, both publishers succeed, TestResults exists and the runner-owned marker matches: https://github.com/nathanmcnulty/azd-maester-azuredevops/blob/67b9c6c91013fc4f6a0c05a0ffc252cba231ba15/scripts/PipelineValidation.Core.psm1#L19-L58",
+        "Deterministic fixtures retain the findings-only control and reject publication failure, other failed tasks or jobs, missing artifacts and missing markers: https://github.com/nathanmcnulty/azd-maester-azuredevops/blob/67b9c6c91013fc4f6a0c05a0ffc252cba231ba15/tests/PipelineValidation.Tests.ps1#L16-L59",
+        "Exact current-main validation passed: https://github.com/nathanmcnulty/azd-maester-azuredevops/actions/runs/37145878990/job/111269591797",
+        "Live evidence gap preserved: PR #14 claims no live Azure DevOps pipeline or Graph run; this is current-source and offline-regression evidence only.",
+        "GitHub issue #12 is closed by merged pull request #14; current origin/main 582697472d74247bb9345c75104b0b69d85e7355 contains the reviewed fix. Source closure does not claim a new live deployment, report publication, or human-visible result."
+      ],
+      "blocker": null,
+      "claim": null
+    },
+    {
+      "id": "MADO-005",
+      "title": "Azure DevOps solution - Authentication Sync between az and azd",
+      "kind": "maintenance",
+      "priority": "P1",
+      "status": "proposed",
+      "wave": 1,
+      "problem": "Open GitHub report captured 2026-10-03. Reproduce against the current source and reconcile active PRs before changing code; the issue remains the detailed trigger/evidence reference.",
+      "scope": [
+        "Paths and trigger cited in the linked issue",
+        "Focused offline regression tests",
+        "docs/"
+      ],
+      "acceptance": [
+        "Classify the report as still reproducible, already fixed, superseded or requiring live evidence; record the exact current revision.",
+        "For a reproducible defect, demonstrate the linked trigger with an offline regression and apply the smallest fix preserving tenant/target/ownership and failure semantics.",
+        "For a feature, produce a bounded design with compatibility, optional permissions, acceptance and rollout gates before implementation; no live mutation or automatic issue closure."
+      ],
+      "validation": [
+        "Read the issue body and current source/PRs; capture the exact reproduction and existing registered offline validation command.",
+        "Use deterministic fixtures for the described trigger and negative boundary; retain current-source results. Do not rerun production or tenant operations to reproduce it."
+      ],
+      "dependencies": [],
+      "authorization": "local-only",
+      "components": [],
+      "sources": [
+        "https://github.com/nathanmcnulty/azd-maester/issues/15",
+        "README.md"
+      ],
+      "evidence": [],
+      "blocker": null
+    },
+    {
+      "id": "MADO-006",
+      "title": "Azure DevOps Solution - Interactive Wizard - Security Group Validation",
+      "kind": "maintenance",
+      "priority": "P1",
+      "status": "proposed",
+      "wave": 1,
+      "problem": "Open GitHub report captured 2026-10-03. Reproduce against the current source and reconcile active PRs before changing code; the issue remains the detailed trigger/evidence reference.",
+      "scope": [
+        "Paths and trigger cited in the linked issue",
+        "Focused offline regression tests",
+        "docs/"
+      ],
+      "acceptance": [
+        "Classify the report as still reproducible, already fixed, superseded or requiring live evidence; record the exact current revision.",
+        "For a reproducible defect, demonstrate the linked trigger with an offline regression and apply the smallest fix preserving tenant/target/ownership and failure semantics.",
+        "For a feature, produce a bounded design with compatibility, optional permissions, acceptance and rollout gates before implementation; no live mutation or automatic issue closure."
+      ],
+      "validation": [
+        "Read the issue body and current source/PRs; capture the exact reproduction and existing registered offline validation command.",
+        "Use deterministic fixtures for the described trigger and negative boundary; retain current-source results. Do not rerun production or tenant operations to reproduce it."
+      ],
+      "dependencies": [],
+      "authorization": "local-only",
+      "components": [],
+      "sources": [
+        "https://github.com/nathanmcnulty/azd-maester/issues/14",
+        "README.md"
+      ],
+      "evidence": [],
+      "blocker": null
+    },
+    {
+      "id": "MADO-007",
+      "title": "Azure DevOps solution - Null Path Binding error in manual fallback instructions",
+      "kind": "maintenance",
+      "priority": "P1",
+      "status": "proposed",
+      "wave": 1,
+      "problem": "Open GitHub report captured 2026-10-03. Reproduce against the current source and reconcile active PRs before changing code; the issue remains the detailed trigger/evidence reference.",
+      "scope": [
+        "Paths and trigger cited in the linked issue",
+        "Focused offline regression tests",
+        "docs/"
+      ],
+      "acceptance": [
+        "Classify the report as still reproducible, already fixed, superseded or requiring live evidence; record the exact current revision.",
+        "For a reproducible defect, demonstrate the linked trigger with an offline regression and apply the smallest fix preserving tenant/target/ownership and failure semantics.",
+        "For a feature, produce a bounded design with compatibility, optional permissions, acceptance and rollout gates before implementation; no live mutation or automatic issue closure."
+      ],
+      "validation": [
+        "Read the issue body and current source/PRs; capture the exact reproduction and existing registered offline validation command.",
+        "Use deterministic fixtures for the described trigger and negative boundary; retain current-source results. Do not rerun production or tenant operations to reproduce it."
+      ],
+      "dependencies": [],
+      "authorization": "local-only",
+      "components": [],
+      "sources": [
+        "https://github.com/nathanmcnulty/azd-maester/issues/13",
+        "README.md"
+      ],
+      "evidence": [],
+      "blocker": null
+    },
+    {
+      "id": "MADO-008",
+      "title": "Azure DevOps Solution - postprovision fails to push to empty repository",
+      "kind": "maintenance",
+      "priority": "P1",
+      "status": "proposed",
+      "wave": 1,
+      "problem": "Open GitHub report captured 2026-10-03. Reproduce against the current source and reconcile active PRs before changing code; the issue remains the detailed trigger/evidence reference.",
+      "scope": [
+        "Paths and trigger cited in the linked issue",
+        "Focused offline regression tests",
+        "docs/"
+      ],
+      "acceptance": [
+        "Classify the report as still reproducible, already fixed, superseded or requiring live evidence; record the exact current revision.",
+        "For a reproducible defect, demonstrate the linked trigger with an offline regression and apply the smallest fix preserving tenant/target/ownership and failure semantics.",
+        "For a feature, produce a bounded design with compatibility, optional permissions, acceptance and rollout gates before implementation; no live mutation or automatic issue closure."
+      ],
+      "validation": [
+        "Read the issue body and current source/PRs; capture the exact reproduction and existing registered offline validation command.",
+        "Use deterministic fixtures for the described trigger and negative boundary; retain current-source results. Do not rerun production or tenant operations to reproduce it."
+      ],
+      "dependencies": [],
+      "authorization": "local-only",
+      "components": [],
+      "sources": [
+        "https://github.com/nathanmcnulty/azd-maester/issues/12",
+        "README.md"
+      ],
+      "evidence": [],
+      "blocker": null
+    },
+    {
+      "id": "MADO-009",
+      "title": "Pin Azure PowerShell and runner module versions for reproducibility",
+      "kind": "discovery",
+      "priority": "P1",
+      "status": "done",
+      "wave": 0,
+      "problem": "The report captured on 2026-10-03 is closed after the reviewed fix merged; this record preserves the original trigger and validation boundary.",
+      "scope": [
+        "Linked issue and current source (read-only)",
+        "Repository-local backlog evidence"
+      ],
+      "acceptance": [
+        "Read the linked issue and current default branch; classify the exact defect, current owner and evidence gap.",
+        "Record a current PR or verified resolution before selecting any implementation; preserve broader feature and live acceptance gates."
+      ],
+      "validation": [
+        "Read current issue and PR state using nathanmcnulty; do not modify or close issues during reconciliation.",
+        "Inspect dirty state and worktrees; resolve the exact current revision and relevant offline commands before implementation."
+      ],
+      "dependencies": [],
+      "authorization": "local-only",
+      "components": [],
+      "sources": [
+        "https://github.com/nathanmcnulty/azd-maester-azuredevops/issues/13"
+      ],
+      "evidence": [
+        "GitHub issue #13 is closed by merged pull request #14; current origin/main 582697472d74247bb9345c75104b0b69d85e7355 contains the reviewed fix. Source closure does not claim a new live deployment, report publication, or human-visible result."
+      ],
+      "blocker": null,
+      "claim": null
+    }
+  ]
+}
