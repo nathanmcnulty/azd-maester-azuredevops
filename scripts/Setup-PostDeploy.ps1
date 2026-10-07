@@ -413,7 +413,7 @@ function Push-RepositoryFiles {
     [object[]]$Files
   )
 
-  $tempPath = Join-Path -Path $env:TEMP -ChildPath ("maester-ado-{0}" -f ([guid]::NewGuid().ToString('N')))
+  $tempPath = Join-Path -Path ([IO.Path]::GetTempPath()) -ChildPath ("maester-ado-{0}" -f ([guid]::NewGuid().ToString('N')))
   New-Item -Path $tempPath -ItemType Directory -Force | Out-Null
 
   $header = "http.extraheader=AUTHORIZATION: bearer $BearerToken"
