@@ -5,8 +5,8 @@
 
 - **Schema version:** 1.0.0
 - **Repository:** nathanmcnulty/azd-maester-azuredevops
-- **Source revision:** `582697472d74247bb9345c75104b0b69d85e7355`
-- **Captured:** 2026-10-04
+- **Source revision:** `80e99c8acc486e985988d06b9ddce75990e4fd38`
+- **Captured:** 2026-10-07
 - **Items:** 9
 
 ## MADO-001: Reconcile this backlog with current source and active work
@@ -229,7 +229,7 @@ Review MADO-005 against the current repository state. Its status or authorizatio
 
 - **Kind:** maintenance
 - **Priority:** P1
-- **Status:** proposed
+- **Status:** done
 - **Wave:** 1
 - **Authorization:** local-only
 - **Blocker:** _none_
@@ -237,11 +237,12 @@ Review MADO-005 against the current repository state. Its status or authorizatio
 
 **Problem:**
 
-Open GitHub report captured 2026-10-03. Reproduce against the current source and reconcile active PRs before changing code; the issue remains the detailed trigger/evidence reference.
+Upstream issue &num;14 reports that the Web App wizard accepted blank or malformed security-group object IDs and failed later. The adopted shared hook now validates and normalizes a non-empty GUID before persistence while preserving the disabled Web App path.
 
 **Scope:**
 
-- Paths and trigger cited in the linked issue
+- scripts/vendor/Azd.MaesterHooks/Maester-UpWizard.psm1
+- azd-components.lock.json
 - Focused offline regression tests
 - docs/
 
@@ -262,16 +263,19 @@ Open GitHub report captured 2026-10-03. Reproduce against the current source and
 
 **Components:**
 
-- _none_
+- maester-azd-hooks
 
 **Sources:**
 
 - https&colon;//github.com/nathanmcnulty/azd-maester/issues/14
-- README.md
+- azd-components.lock.json
+- scripts/vendor/Azd.MaesterHooks/Maester-UpWizard.psm1
 
 **Evidence:**
 
-- _none_
+- Read open upstream azd-maester issue &num;14 on 2026-10-07 and adopted reviewed pilot maester-azd-hooks 0.1.6 from immutable azd-reference revision a09cac311aac7362f56d2a31833ed90ce5812649 into exact host base 80e99c8acc486e985988d06b9ddce75990e4fd38. The lock now binds the changed wizard to SHA-256 aa88f4f8a65d41ae6b06a1008c55eb1e2fbedebbb07b5f2f987c4452baf363c0.
+- Nine extracted canonical behavior tests executed against the actual vendored component bytes&colon; blank, malformed, nil and malformed legacy cached values fail before environment persistence; a valid cached GUID is normalized before persistence; interactive input retries after a malformed value; and the disabled Web App path performs no group validation or Graph lookup.
+- The guard proves GUID formatting and fail-before-persistence behavior only. It does not prove that the GUID identifies a group, that the group exists in a selected directory, or that a live Azure DevOps deployment succeeds. No authentication, directory lookup, group creation, permission grant, deployment or upstream issue action ran.
 
 **Review and authorization note:**
 
@@ -389,7 +393,7 @@ Review MADO-008 against the current repository state. Its status or authorizatio
 
 - **Kind:** maintenance
 - **Priority:** P2
-- **Status:** proposed
+- **Status:** done
 - **Wave:** 1
 - **Authorization:** local-only
 - **Blocker:** _none_
@@ -434,7 +438,9 @@ Existing adoption must be updated through hashes and host-specific validation ra
 
 **Evidence:**
 
-- _none_
+- At reviewed host base 80e99c8acc486e985988d06b9ddce75990e4fd38, all eight maester-azd-hooks 0.1.5 files and the maester-report-webapp 0.1.1 file matched their existing lock hashes before import. Adopted only maester-azd-hooks 0.1.6 from immutable azd-reference revision a09cac311aac7362f56d2a31833ed90ce5812649; seven hook files were byte-identical and only Maester-UpWizard.psm1 changed. The report-webapp pin remains 0.1.1 at 79f0608c672639aae0f0ed96d160b1eb17cfc08f.
+- Added a partial, source-bound permission inventory with 24 proven entries&colon; eight Minimal Graph application roles, eleven Extended additions, four deployment-operator delegated scopes used by the shared grant helper, and optional Mail.Send when a recipient is configured. Canonical comparison has no evidence-hash findings but comparisonComplete remains false because Azure RBAC, Azure DevOps, other host Graph operations, Exchange, Teams, report-webapp and cleanup authority remain explicit gaps; this records no tenant consent or effective grants.
+- Offline validation passed all 39 repository Pester tests, the focused TargetContext negative cases, all nine extracted canonical Maester hook behavior tests against the actual vendored bytes, parsing of 23 PowerShell files, two Bicep builds, component drift, permission schema/comparison including a stale-hash control, and backlog schema/generated-view checks. No authentication, deployment, permission grant, pipeline run, report publication or cleanup ran.
 
 **Review and authorization note:**
 
