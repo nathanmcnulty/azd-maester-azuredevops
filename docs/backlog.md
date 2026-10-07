@@ -281,7 +281,7 @@ Review MADO-006 against the current repository state. Its status or authorizatio
 
 - **Kind:** maintenance
 - **Priority:** P1
-- **Status:** proposed
+- **Status:** done
 - **Wave:** 1
 - **Authorization:** local-only
 - **Blocker:** _none_
@@ -323,7 +323,9 @@ Open GitHub report captured 2026-10-03. Reproduce against the current source and
 
 **Evidence:**
 
-- _none_
+- Reproduced issue &num;13 against exact current-main base 760ac2d854b54367376b6c9892ff8c0385ab92c6&colon; with TEMP absent, repository staging raised the reported Null Path Binding error before invoking git.
+- Setup-PostDeploy now resolves its repository staging root with IO.Path.GetTempPath; focused offline Pester coverage passed both the no-change and clone-failure paths with TEMP absent and verified finally cleanup without authentication or network access.
+- Full current-source offline validation passed 39/39 Pester tests and parsed all 23 PowerShell files without errors; no authentication, repository push or live service operation ran.
 
 **Review and authorization note:**
 
