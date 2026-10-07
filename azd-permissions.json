@@ -1,0 +1,455 @@
+{
+  "schemaVersion": "1.0",
+  "solutionId": "azd-maester-azuredevops",
+  "status": "implemented",
+  "coverage": "partial",
+  "reviewedOn": "2026-10-07",
+  "requirements": [
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "Directory.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "minimal",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Roles in the Minimal profile, also included by Extended.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "e43b6e4ce60c9adef30355cc126519e5f754c01630c94fca9d85c04aebde3548"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "DirectoryRecommendations.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "minimal",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Roles in the Minimal profile, also included by Extended.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "e43b6e4ce60c9adef30355cc126519e5f754c01630c94fca9d85c04aebde3548"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "IdentityRiskEvent.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "minimal",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Roles in the Minimal profile, also included by Extended.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "e43b6e4ce60c9adef30355cc126519e5f754c01630c94fca9d85c04aebde3548"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "Policy.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "minimal",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Roles in the Minimal profile, also included by Extended.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "e43b6e4ce60c9adef30355cc126519e5f754c01630c94fca9d85c04aebde3548"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "Policy.Read.ConditionalAccess",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "minimal",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Roles in the Minimal profile, also included by Extended.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "e43b6e4ce60c9adef30355cc126519e5f754c01630c94fca9d85c04aebde3548"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "RoleManagement.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "minimal",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Roles in the Minimal profile, also included by Extended.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "e43b6e4ce60c9adef30355cc126519e5f754c01630c94fca9d85c04aebde3548"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "Reports.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "minimal",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Roles in the Minimal profile, also included by Extended.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "e43b6e4ce60c9adef30355cc126519e5f754c01630c94fca9d85c04aebde3548"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "UserAuthenticationMethod.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "minimal",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Roles in the Minimal profile, also included by Extended.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "e43b6e4ce60c9adef30355cc126519e5f754c01630c94fca9d85c04aebde3548"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "DeviceManagementConfiguration.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "extended",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Additional roles in the default Extended helper profile; exclude extended to inspect Minimal.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "e43b6e4ce60c9adef30355cc126519e5f754c01630c94fca9d85c04aebde3548"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "DeviceManagementServiceConfig.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "extended",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Additional roles in the default Extended helper profile; exclude extended to inspect Minimal.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "e43b6e4ce60c9adef30355cc126519e5f754c01630c94fca9d85c04aebde3548"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "DeviceManagementManagedDevices.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "extended",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Additional roles in the default Extended helper profile; exclude extended to inspect Minimal.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "e43b6e4ce60c9adef30355cc126519e5f754c01630c94fca9d85c04aebde3548"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "DeviceManagementRBAC.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "extended",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Additional roles in the default Extended helper profile; exclude extended to inspect Minimal.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "e43b6e4ce60c9adef30355cc126519e5f754c01630c94fca9d85c04aebde3548"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "PrivilegedAccess.Read.AzureAD",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "extended",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Additional roles in the default Extended helper profile; exclude extended to inspect Minimal.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "e43b6e4ce60c9adef30355cc126519e5f754c01630c94fca9d85c04aebde3548"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "ReportSettings.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "extended",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Additional roles in the default Extended helper profile; exclude extended to inspect Minimal.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "e43b6e4ce60c9adef30355cc126519e5f754c01630c94fca9d85c04aebde3548"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "RoleEligibilitySchedule.Read.Directory",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "extended",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Additional roles in the default Extended helper profile; exclude extended to inspect Minimal.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "e43b6e4ce60c9adef30355cc126519e5f754c01630c94fca9d85c04aebde3548"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "SecurityIdentitiesHealth.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "extended",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Additional roles in the default Extended helper profile; exclude extended to inspect Minimal.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "e43b6e4ce60c9adef30355cc126519e5f754c01630c94fca9d85c04aebde3548"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "SecurityIdentitiesSensors.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "extended",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Additional roles in the default Extended helper profile; exclude extended to inspect Minimal.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "e43b6e4ce60c9adef30355cc126519e5f754c01630c94fca9d85c04aebde3548"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "SharePointTenantSettings.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "extended",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Additional roles in the default Extended helper profile; exclude extended to inspect Minimal.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "e43b6e4ce60c9adef30355cc126519e5f754c01630c94fca9d85c04aebde3548"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "ThreatHunting.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "extended",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Additional roles in the default Extended helper profile; exclude extended to inspect Minimal.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "e43b6e4ce60c9adef30355cc126519e5f754c01630c94fca9d85c04aebde3548"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "delegated",
+      "permission": "Application.Read.All",
+      "principal": "deployment-operator",
+      "phase": "deployment",
+      "feature": "core",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Recorded hook context required for app-role assignment.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "e43b6e4ce60c9adef30355cc126519e5f754c01630c94fca9d85c04aebde3548"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "delegated",
+      "permission": "AppRoleAssignment.ReadWrite.All",
+      "principal": "deployment-operator",
+      "phase": "deployment",
+      "feature": "core",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Recorded hook context required for app-role assignment.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "e43b6e4ce60c9adef30355cc126519e5f754c01630c94fca9d85c04aebde3548"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "delegated",
+      "permission": "Directory.Read.All",
+      "principal": "deployment-operator",
+      "phase": "deployment",
+      "feature": "core",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Recorded hook context required for app-role assignment.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "e43b6e4ce60c9adef30355cc126519e5f754c01630c94fca9d85c04aebde3548"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "delegated",
+      "permission": "Directory.AccessAsUser.All",
+      "principal": "deployment-operator",
+      "phase": "deployment",
+      "feature": "core",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Recorded hook context required for app-role assignment.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "e43b6e4ce60c9adef30355cc126519e5f754c01630c94fca9d85c04aebde3548"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "Mail.Send",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "email",
+      "defaultEnabled": false,
+      "scope": "tenant",
+      "rationale": "The hook requests Mail.Send when MAIL_RECIPIENT is configured; this is distinct from mailbox-scoped Exchange RBAC.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/Setup-PostDeploy.ps1",
+          "sha256": "43e3fb968d38cfb5fd8380dbd9f4486ce357f776bd7c736403c515391b4ff01f"
+        },
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "e43b6e4ce60c9adef30355cc126519e5f754c01630c94fca9d85c04aebde3548"
+        }
+      ]
+    }
+  ],
+  "gaps": [
+    "Always-created Azure RBAC is not inventoried: workload Reader on the solution resource group, workload Storage Blob Data Contributor on the solution storage account, deployment-operator Storage Blob Data Reader on that storage account, and the ARM authority needed to inspect or create those assignments.",
+    "Azure DevOps authority is not inventoried: project/repository creation or lookup, service-connection administration, repository and pipeline authorization, pipeline creation, and cleanup of those objects.",
+    "Deployment-operator Microsoft Graph authority outside the shared grant helper is not fully inventoried, including application, service-principal, federated-credential, group, directory-role, and consent operations performed by host setup.",
+    "Optional Exchange setup is not inventoried: Exchange.ManageAsApp, Exchange RBAC View-Only Configuration, RoleManagement.ReadWrite.Directory used by the shared advanced-setup connection, and its cleanup authority.",
+    "Optional Teams setup is not inventoried: Teams Reader or fallback Teams Administrator, RoleManagement.ReadWrite.Directory used by the shared advanced-setup connection, and its cleanup authority.",
+    "Optional Azure setup is not inventoried: workload Reader at operator-selected subscription or management-group scopes and the operator authority used to create and remove those assignments.",
+    "Optional report web app setup is not inventoried: workload Website Contributor, Group.Read.All and Directory.Read.All for group resolution, Application.ReadWrite.All, Directory.Read.All and DelegatedPermissionGrant.ReadWrite.All for Easy Auth, the tenant-wide openid/profile/email/User.Read delegated grant, and cleanup authority.",
+    "Cleanup authority and ownership boundaries for Azure RBAC, Microsoft Graph, Azure DevOps, Exchange, Teams, and web-app objects require separate review before any removal workflow is authorized."
+  ]
+}
