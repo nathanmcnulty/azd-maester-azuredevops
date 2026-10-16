@@ -433,7 +433,7 @@
       "evidence": [
         {
           "path": "scripts/Setup-PostDeploy.ps1",
-          "sha256": "301f819610a182aa901d5c0e999213ccfbb5b63ceea1b1414fdfb6320da46fb2"
+          "sha256": "059ac1c8a9eb375a2b68a2a1dfac6543a6efa8e82019e78cc3ab4f4b27f6cb1f"
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
@@ -450,6 +450,7 @@
     "Optional Teams setup is not inventoried: Teams Reader or fallback Teams Administrator, RoleManagement.ReadWrite.Directory used by the shared advanced-setup connection, and its cleanup authority.",
     "Optional Azure setup is not inventoried: workload Reader at operator-selected subscription or management-group scopes and the operator authority used to create and remove those assignments.",
     "Optional report web app setup is not inventoried: workload Website Contributor, Group.Read.All and Directory.Read.All for group resolution, Application.ReadWrite.All, Directory.Read.All and DelegatedPermissionGrant.ReadWrite.All for Easy Auth, the tenant-wide openid/profile/email/User.Read delegated grant, and cleanup authority.",
-    "Cleanup authority and ownership boundaries for Azure RBAC, Microsoft Graph, Azure DevOps, Exchange, Teams, and web-app objects require separate review before any removal workflow is authorized."
+    "Cleanup authority and ownership boundaries for Azure RBAC, Microsoft Graph, Azure DevOps, Exchange, Teams, and web-app objects require separate review before any removal workflow is authorized.",
+    "Default-disabled drift isolation adds no permission or collector. Approved drift inputs, normalization/privacy and any future source collection/publication authority need separate review; existing permission evidence and runtime validation gates are unchanged."
   ]
 }
