@@ -219,7 +219,9 @@ Open GitHub report captured 2026-10-03. Reproduce against the current source and
 
 **Evidence:**
 
-- _none_
+- 2026-10-16&colon; Inspected origin/main 80dd3bcab64cdbf5adafd7131f5ea47b378065f6 and the linked azd-maester issue &num;15. The original MFA/token-expiry report needs stage-specific live evidence; no trace identifies whether provisioning or post-provision setup failed. It remains proposed and is not closed by this change.
+- Reproduced a separate post-provision boundary defect&colon; four offline cases &lpar;wrong subscription, wrong tenant, absent context, absent tenant&rpar; reached target discovery. Added a returned-context guard before discovery; all eight authentication behavior tests and all 72 repository tests pass with PowerShell 7.6.6 and Pester 6.2.0. No live authentication, deployments, permissions or audience membership changes were performed.
+- See docs/authentication-context.md for credential-store boundaries and the evidence still needed for the original report.
 
 **Review and authorization note:**
 
