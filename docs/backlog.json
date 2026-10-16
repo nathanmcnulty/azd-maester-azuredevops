@@ -1,8 +1,8 @@
 {
   "schemaVersion": "1.0.0",
   "repository": "nathanmcnulty/azd-maester-azuredevops",
-  "sourceRevision": "80e99c8acc486e985988d06b9ddce75990e4fd38",
-  "capturedAt": "2026-10-07",
+  "sourceRevision": "8fd330ba59db6ad18b13f8383c699b8720dc7168",
+  "capturedAt": "2026-10-16",
   "items": [
     {
       "id": "MADO-001",
@@ -378,6 +378,82 @@
         "2026-10-16: Follow-up based on authentication PR24 head 87cacb1f926971b1ad4ead8e4ed497c50021f9d4. All ten owned scripts/modules require PowerShell 7.6. The generated pipeline performs a version preflight before its Azure CLI task. Vendored source and runtime package locks are unchanged.",
         "Actual PowerShell 7.6.6 / Pester 6.2.0 full offline suite: 74 passed, zero failed/skipped. No live Azure DevOps agent, service connection, workload, report publication or tenant change was exercised; MADO-002 remains open."
       ],
+      "blocker": null
+    },
+    {
+      "id": "MADO-011",
+      "title": "Keep configuration drift disabled and isolated by default",
+      "kind": "maintenance",
+      "priority": "P1",
+      "status": "done",
+      "wave": 3,
+      "problem": "Omitting DriftRoot leaves upstream Maester able to discover unapproved input from an inherited process environment variable.",
+      "scope": [
+        "scripts/Invoke-MaesterAzureDevOpsRun.ps1",
+        "tests/DriftIsolation.Tests.ps1",
+        "docs/drift-isolation.md",
+        "docs/backlog.json",
+        "docs/backlog.md"
+      ],
+      "acceptance": [
+        "Exclude the locked upstream drift file before Pester discovery and clear its ambient environment during invocation, restoring prior process state on success and failure.",
+        "Preserve ordinary assessment, genuine findings, publication and failure semantics; do not enable drift, fetch data or add permissions.",
+        "Prove the original inherited-input defect and corrected isolation with exact production configuration/invocation tests plus actual locked suite/report qualification."
+      ],
+      "validation": [
+        "PowerShell 7.6+ and Pester 6.2: Invoke-Pester ./tests -CI",
+        "Parse all PowerShell; canonical backlog schema/render checks; fixtures are not native job or publisher proof."
+      ],
+      "dependencies": [],
+      "authorization": "local-only",
+      "components": [],
+      "sources": [
+        "docs/drift-isolation.md",
+        "https://github.com/nathanmcnulty/azd-maester/blob/090001c61660d6522d2c5d4df6581af297015b35/docs/drift-analysis-design.md",
+        "https://github.com/nathanmcnulty/azd-maester/issues/2"
+      ],
+      "evidence": [
+        "PowerShell 7.6.6/Pester 6.2.0 full repository validation passed 78/78 with zero nonpasses; parser and differential analyzer checks found no new supported-runtime issue. Three isolation regression cases fail against the original runner, and all four pass with the fix.",
+        "Actual offline locked Maester 2.2.0 Invoke-Maester qualification used this host production configuration/invocation blocks, an unchanged hash-verified upstream suite, one ordinary synthetic test and an inherited unapproved input folder. Exactly one ordinary test passed, drift stayed excluded, the inherited environment was restored, and no HTTP/authentication tripwire fired. Qualification supplies offline connection flags and invokes only assessment blocks; publisher paths are outside this check, and no native job, workload identity, Blob publication/access or cleanup outcome is claimed.",
+        "Default-disabled isolation only; MADO-012 retains the approved-input adapter, normalization/privacy and native qualification gates. Existing runtime/deployment validation evidence is preserved."
+      ],
+      "blocker": null
+    },
+    {
+      "id": "MADO-012",
+      "title": "Implement approved data-only configuration drift inputs",
+      "kind": "feature",
+      "priority": "P2",
+      "status": "proposed",
+      "wave": 4,
+      "problem": "Upstream drift comparison exists, but this host has no approved artifact/target/privacy contract or live qualification.",
+      "scope": [
+        "scripts/Invoke-MaesterAzureDevOpsRun.ps1",
+        "tests/",
+        "docs/",
+        "azd-permissions.json"
+      ],
+      "acceptance": [
+        "Follow the reviewed MCAT-011 design: explicitly enabled data-only artifacts, immutable approved baseline, tenant/environment/run/source/hash/freshness binding, bounded JSON/path/link/duplicate validation and reviewed schemas, normalization and exclusions.",
+        "Use the actual locked upstream suite with expected positive case counts and fail on missing suite, zero cases, malformed/scalar/settings inputs, comparison errors and container failures; preserve default-off isolation and reused-process environment restoration.",
+        "Inspect actual HTML/JSON/Markdown/logs for planted sensitive values; preserve separate comparison, report and publication outcomes and rollback. Add no automatic capture, baseline update or remediation.",
+        "Independently review the adapter and qualify authorized native job execution, report access, rollback and exact owned cleanup; coordinate a second host before shared extraction."
+      ],
+      "validation": [
+        "PowerShell 7.6+/Pester 6.2 registered tests and actual locked suite/report fixtures.",
+        "Separate authorized native host/report/access/cleanup qualification; local metadata grants no live authority."
+      ],
+      "dependencies": [
+        "MADO-011"
+      ],
+      "authorization": "local-only",
+      "components": [],
+      "sources": [
+        "docs/drift-isolation.md",
+        "https://github.com/nathanmcnulty/azd-maester/blob/090001c61660d6522d2c5d4df6581af297015b35/docs/drift-analysis-design.md",
+        "https://github.com/nathanmcnulty/azd-maester/issues/2"
+      ],
+      "evidence": [],
       "blocker": null
     }
   ]

@@ -488,12 +488,21 @@ $resultsXmlPath = Join-Path -Path $outputFolder -ChildPath 'test-results.xml'
 $latestHtmlPath = Join-Path -Path $outputFolder -ChildPath 'latest.html'
 
 $pesterConfiguration = New-PesterConfiguration
+# Drift is not enabled by this host; exclude it before input discovery.
+$pesterConfiguration.Run.ExcludePath = @((Join-Path -Path $testsRoot -ChildPath 'Maester/Drift/MT1060Drift.tests.ps1'))
 $pesterConfiguration.TestResult.Enabled = $true
 $pesterConfiguration.TestResult.OutputPath = $resultsXmlPath
 
 Write-Host 'Running Maester tests...'
 # Pipelines must stay non-interactive; never allow device-code/browser auth prompts.
-Invoke-Maester -Path $testsRoot -PesterConfiguration $pesterConfiguration -OutputFolder $outputFolder -NonInteractive:$true -WarningAction SilentlyContinue
+$previousDriftRoot = [Environment]::GetEnvironmentVariable('MAESTER_FOLDER_DRIFT', 'Process')
+try {
+  [Environment]::SetEnvironmentVariable('MAESTER_FOLDER_DRIFT', $null, 'Process')
+  Invoke-Maester -Path $testsRoot -PesterConfiguration $pesterConfiguration -OutputFolder $outputFolder -NonInteractive:$true -WarningAction SilentlyContinue
+}
+finally {
+  [Environment]::SetEnvironmentVariable('MAESTER_FOLDER_DRIFT', $previousDriftRoot, 'Process')
+}
 
 
 $generatedHtml = Get-ChildItem -Path $outputFolder -Filter 'TestResults*.html' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
