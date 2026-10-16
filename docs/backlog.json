@@ -344,6 +344,41 @@
       ],
       "blocker": null,
       "claim": null
+    },
+    {
+      "id": "MADO-010",
+      "title": "Enforce the PowerShell 7.6 and Pester 6.2 authoring baseline",
+      "kind": "maintenance",
+      "priority": "P1",
+      "status": "done",
+      "wave": 1,
+      "problem": "Repository CI now selects Pester 6.2, but owned entry points and the generated pipeline did not enforce the PowerShell 7.6 floor.",
+      "scope": [
+        "Owned scripts and validation module",
+        "Generated pipeline preflight and developer guidance"
+      ],
+      "acceptance": [
+        "Require PowerShell 7.6+ before owned script/module bodies execute; keep immutable vendor and runtime package locks unchanged.",
+        "Check the pipeline agent version before its Azure CLI service-connection task and log the selected validation versions.",
+        "Run all offline tests on actual PowerShell 7.6+ and Pester 6.2; retain the separate live agent/workload gates."
+      ],
+      "validation": [
+        "Import-Module Pester -RequiredVersion 6.2.0; Invoke-Pester -Path ./tests -CI",
+        "Parse owned entry points and generated inline pipeline script; validate permission evidence and canonical backlog schema/generated Markdown."
+      ],
+      "dependencies": [],
+      "authorization": "local-only",
+      "components": [],
+      "sources": [
+        "https://github.com/nathanmcnulty/azd-maester-azuredevops/issues/23",
+        "https://github.com/nathanmcnulty/azd-maester-azuredevops/pull/24",
+        "docs/development.md"
+      ],
+      "evidence": [
+        "2026-10-16: Follow-up based on authentication PR24 head 87cacb1f926971b1ad4ead8e4ed497c50021f9d4. All ten owned scripts/modules require PowerShell 7.6. The generated pipeline performs a version preflight before its Azure CLI task. Vendored source and runtime package locks are unchanged.",
+        "Actual PowerShell 7.6.6 / Pester 6.2.0 full offline suite: 74 passed, zero failed/skipped. No live Azure DevOps agent, service connection, workload, report publication or tenant change was exercised; MADO-002 remains open."
+      ],
+      "blocker": null
     }
   ]
 }

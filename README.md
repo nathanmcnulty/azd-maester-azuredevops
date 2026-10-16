@@ -9,6 +9,10 @@ Deploys a production-style Maester monitoring solution using Azure DevOps Pipeli
 - Storage-backed report history (`archive`) and latest pointer (`latest/latest.html`)
 - Optional App Service + Easy Auth portal in WebApp mode
 
+Local setup and pipeline execution require **PowerShell 7.6 or newer**. See
+[development validation](docs/development.md) for the matching Pester baseline
+and the pipeline agent requirement.
+
 ## Quickstart (existing Azure DevOps project)
 
 After `azd init -t nathanmcnulty/azd-maester-azuredevops`, run from the template root:

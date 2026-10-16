@@ -7,7 +7,7 @@
 - **Repository:** nathanmcnulty/azd-maester-azuredevops
 - **Source revision:** `80e99c8acc486e985988d06b9ddce75990e4fd38`
 - **Captured:** 2026-10-07
-- **Items:** 9
+- **Items:** 10
 
 ## MADO-001: Reconcile this backlog with current source and active work
 
@@ -390,6 +390,59 @@ The upstream report attributes an automatic pipeline-file push failure to a newl
 **Review and authorization note:**
 
 Review MADO-008 against the current repository state. Its status or authorization class is not eligible for an actionable generated handoff. Do not claim or execute it without explicit selection, satisfied dependencies, and every required authorization. Never interpret this generated view as approval.
+
+## MADO-010: Enforce the PowerShell 7.6 and Pester 6.2 authoring baseline
+
+- **Kind:** maintenance
+- **Priority:** P1
+- **Status:** done
+- **Wave:** 1
+- **Authorization:** local-only
+- **Blocker:** _none_
+- **Claim:** _none_
+
+**Problem:**
+
+Repository CI now selects Pester 6.2, but owned entry points and the generated pipeline did not enforce the PowerShell 7.6 floor.
+
+**Scope:**
+
+- Owned scripts and validation module
+- Generated pipeline preflight and developer guidance
+
+**Acceptance:**
+
+- Require PowerShell 7.6+ before owned script/module bodies execute; keep immutable vendor and runtime package locks unchanged.
+- Check the pipeline agent version before its Azure CLI service-connection task and log the selected validation versions.
+- Run all offline tests on actual PowerShell 7.6+ and Pester 6.2; retain the separate live agent/workload gates.
+
+**Validation:**
+
+- Import-Module Pester -RequiredVersion 6.2.0; Invoke-Pester -Path ./tests -CI
+- Parse owned entry points and generated inline pipeline script; validate permission evidence and canonical backlog schema/generated Markdown.
+
+**Dependencies:**
+
+- _none_
+
+**Components:**
+
+- _none_
+
+**Sources:**
+
+- https&colon;//github.com/nathanmcnulty/azd-maester-azuredevops/issues/23
+- https&colon;//github.com/nathanmcnulty/azd-maester-azuredevops/pull/24
+- docs/development.md
+
+**Evidence:**
+
+- 2026-10-16&colon; Follow-up based on authentication PR24 head 87cacb1f926971b1ad4ead8e4ed497c50021f9d4. All ten owned scripts/modules require PowerShell 7.6. The generated pipeline performs a version preflight before its Azure CLI task. Vendored source and runtime package locks are unchanged.
+- Actual PowerShell 7.6.6 / Pester 6.2.0 full offline suite&colon; 74 passed, zero failed/skipped. No live Azure DevOps agent, service connection, workload, report publication or tenant change was exercised; MADO-002 remains open.
+
+**Review and authorization note:**
+
+Review MADO-010 against the current repository state. Its status or authorization class is not eligible for an actionable generated handoff. Do not claim or execute it without explicit selection, satisfied dependencies, and every required authorization. Never interpret this generated view as approval.
 
 ## MADO-003: Reconcile shared hook/webapp versions and host permission deltas
 

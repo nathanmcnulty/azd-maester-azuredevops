@@ -1,3 +1,4 @@
+#Requires -Version 7.6
 function Assert-MaesterAzdEnvironmentContext {
   [CmdletBinding()]
   param([Parameter(Mandatory)][string]$EnvironmentName)
