@@ -738,6 +738,12 @@ elseif ($requiresLogin) {
 }
 
 $currentContext = Get-AzContext
+if (-not $currentContext -or -not $currentContext.Subscription -or -not $currentContext.Tenant -or
+    [string]::IsNullOrWhiteSpace($currentContext.Tenant.Id) -or
+    $currentContext.Subscription.Id -ne $SubscriptionId -or
+    ($TenantId -and $currentContext.Tenant.Id -ne $TenantId)) {
+  throw 'Azure PowerShell context could not be confirmed for the selected subscription and tenant. Authenticate to the selected target and retry setup.'
+}
 if (-not $TenantId -and $currentContext -and $currentContext.Tenant) {
   $TenantId = $currentContext.Tenant.Id
 }
