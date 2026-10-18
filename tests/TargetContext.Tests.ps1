@@ -24,7 +24,7 @@ Describe 'Azure CLI target context' {
   It 'requests only the Azure DevOps access token for pipeline validation' {
     $validator = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'scripts\Invoke-PipelineValidation.ps1')
 
-    $validator | Should -Match "'--query',\s*'accessToken'"
+    $validator | Should -Match 'Get-AzCliAccessToken -Resource.*499b84ac-1321-427f-aa17-267ca6975798'
   }
 
   It 'targets every Azure CLI REST request explicitly' {
@@ -47,10 +47,11 @@ Describe 'Azure CLI target context' {
 
 Describe 'Selected subscription validation' {
   InModuleScope Maester-SetupHelpers {
+    BeforeAll { function az { throw 'Unmocked Azure CLI tripwire.' } }
     BeforeEach {
       Mock az {
         $global:LASTEXITCODE = 0
-        '[{"id":"11111111-1111-1111-1111-111111111111","tenantId":"22222222-2222-2222-2222-222222222222"}]'
+        '{"id":"/subscriptions/11111111-1111-1111-1111-111111111111","subscriptionId":"11111111-1111-1111-1111-111111111111","tenantId":"22222222-2222-2222-2222-222222222222","state":"Enabled","displayName":"Selected"}'
       }
     }
 

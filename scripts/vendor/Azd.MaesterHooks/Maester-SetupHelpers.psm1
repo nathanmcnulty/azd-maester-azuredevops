@@ -150,23 +150,51 @@ function Get-AzCliSubscriptionContext {
     [string]$TenantId
   )
 
-  $accountsJson = (& az account list -o json 2>$null)
-  if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($accountsJson)) {
-    throw 'Not authenticated. Run: azd auth login'
+  # Only ARM can attest the current subscription state; CLI account list/show
+  # is a local login cache and can remain Enabled after a subscription is disabled.
+  $subscriptionGuid = [guid]::Empty
+  $tenantGuid = [guid]::Empty
+  if (-not [guid]::TryParse($SubscriptionId, [ref]$subscriptionGuid) -or $subscriptionGuid -eq [guid]::Empty) {
+    throw 'An explicit non-empty subscription GUID is required.'
+  }
+  if (-not [string]::IsNullOrWhiteSpace($TenantId) -and
+      (-not [guid]::TryParse($TenantId, [ref]$tenantGuid) -or $tenantGuid -eq [guid]::Empty)) {
+    throw 'The expected tenant must be a non-empty GUID.'
+  }
+  $SubscriptionId = $subscriptionGuid.ToString()
+  $metadataJson = (& az rest --method get --url "https://management.azure.com/subscriptions/${SubscriptionId}?api-version=2022-12-01" --subscription $SubscriptionId --output json 2>$null)
+  if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($metadataJson)) {
+    throw "Unable to read current ARM metadata for subscription '$SubscriptionId'. Sign in with az login --tenant <tenant-id> using normal broker/browser authentication."
+  }
+  try {
+    $metadata = $metadataJson | ConvertFrom-Json -AsHashtable -ErrorAction Stop
+  }
+  catch {
+    throw "Invalid ARM metadata for subscription '$SubscriptionId'."
+  }
+  $actualTenant = [guid]::Empty
+  if ($metadata -isnot [System.Collections.IDictionary] -or
+      [string]$metadata.subscriptionId -ine $SubscriptionId -or
+      [string]$metadata.id -ine "/subscriptions/$SubscriptionId" -or
+      -not [guid]::TryParse([string]$metadata.tenantId, [ref]$actualTenant) -or
+      $actualTenant -eq [guid]::Empty -or
+      [string]::IsNullOrWhiteSpace([string]$metadata.displayName)) {
+    throw "Missing or invalid ARM subscription identity/tenant metadata for '$SubscriptionId'."
+  }
+  if ($tenantGuid -ne [guid]::Empty -and $actualTenant -ne $tenantGuid) {
+    throw "Subscription '$SubscriptionId' belongs to tenant '$actualTenant', not selected tenant '$TenantId'."
+  }
+  if ([string]$metadata.state -cne 'Enabled') {
+    throw "Subscription '$SubscriptionId' must currently be Enabled; ARM returned '$($metadata.state)'."
   }
 
-  $account = @($accountsJson | ConvertFrom-Json) |
-    Where-Object { $_.id -ieq $SubscriptionId } |
-    Select-Object -First 1
-  if (-not $account) {
-    throw "Subscription '$SubscriptionId' is not available in the current Azure CLI login."
+  # Preserve the account-shaped fields consumed by hooks (ARM id is a resource path).
+  return [pscustomobject]@{
+    id = $SubscriptionId
+    name = [string]$metadata.displayName
+    tenantId = $actualTenant.ToString()
+    state = [string]$metadata.state
   }
-
-  if (-not [string]::IsNullOrWhiteSpace($TenantId) -and $account.tenantId -ine $TenantId) {
-    throw "Subscription '$SubscriptionId' belongs to tenant '$($account.tenantId)', not selected tenant '$TenantId'."
-  }
-
-  return $account
 }
 
 function Get-AzCliAccessToken {
@@ -178,6 +206,20 @@ function Get-AzCliAccessToken {
     [Parameter(Mandatory = $false)]
     [string]$SubscriptionId
   )
+
+  if ([string]::IsNullOrWhiteSpace($TenantId) -and [string]::IsNullOrWhiteSpace($SubscriptionId)) {
+    throw 'An explicit TenantId or SubscriptionId is required for Azure CLI token acquisition.'
+  }
+  $expectedTenant = [guid]::Empty
+  if (-not [string]::IsNullOrWhiteSpace($TenantId) -and
+      (-not [guid]::TryParse($TenantId, [ref]$expectedTenant) -or $expectedTenant -eq [guid]::Empty)) {
+    throw 'An explicit non-empty tenant GUID is required for Azure CLI token acquisition.'
+  }
+  if (-not [string]::IsNullOrWhiteSpace($SubscriptionId)) {
+    $context = Get-AzCliSubscriptionContext -SubscriptionId $SubscriptionId -TenantId $TenantId
+    $SubscriptionId = $context.id
+    $expectedTenant = [guid]$context.tenantId
+  }
 
   try {
     $tokenArgs = @('account', 'get-access-token', '--resource', $Resource, '-o', 'json')
@@ -194,7 +236,9 @@ function Get-AzCliAccessToken {
     $tokenJson = (& az @tokenArgs 2>$null)
     if ($LASTEXITCODE -eq 0 -and $tokenJson) {
       $tokenData = $tokenJson | ConvertFrom-Json
-      if ($tokenData.accessToken) {
+      if (-not [string]::IsNullOrWhiteSpace([string]$tokenData.accessToken) -and
+          [string]$tokenData.tenant -ieq $expectedTenant.ToString() -and
+          ([string]::IsNullOrWhiteSpace($SubscriptionId) -or [string]$tokenData.subscription -ieq $SubscriptionId)) {
         return $tokenData.accessToken
       }
     }
@@ -340,26 +384,23 @@ function Connect-MgGraphSilent {
 function Connect-ExchangeOnlineSilent {
   param(
     [Parameter(Mandatory = $false)]
-    [string]$Organization
+    [string]$Organization,
+    [Parameter(Mandatory = $false)]
+    [string]$TenantId
   )
 
-  $token = Get-AzCliAccessToken -Resource 'https://outlook.office365.com'
-  if ($token) {
-    $connectArgs = @{
-      AccessToken = $token
-      ShowBanner  = $false
-    }
-    if (-not [string]::IsNullOrWhiteSpace($Organization)) {
-      $connectArgs['Organization'] = $Organization
-    }
-    Connect-ExchangeOnline @connectArgs | Out-Null
-    return
+  # Do not infer the target from Organization or the ambient CLI/Exchange session.
+  # Keeping this non-mandatory avoids an interactive parameter prompt on old callers.
+  if ([string]::IsNullOrWhiteSpace($TenantId)) {
+    throw 'TenantId is required for Exchange Online. Pass the validated selected tenant explicitly.'
   }
-
-  Write-Verbose 'az cli token not available for Exchange Online. Falling back to interactive auth.'
+  $token = Get-AzCliAccessToken -Resource 'https://outlook.office365.com' -TenantId $TenantId
+  if (-not $token) {
+    throw "Exchange Online token acquisition failed for tenant '$TenantId'. Run az login --tenant $TenantId using normal broker/browser authentication, then retry."
+  }
   $connectArgs = @{
+    AccessToken = $token
     ShowBanner = $false
-    DisableWAM = $true
   }
   if (-not [string]::IsNullOrWhiteSpace($Organization)) {
     $connectArgs['Organization'] = $Organization
@@ -369,6 +410,11 @@ function Connect-ExchangeOnlineSilent {
 
 function Confirm-AzureLogin {
   param([Parameter(Mandatory = $false)][string]$TenantId)
+
+  $tenantGuid = [guid]::Empty
+  if (-not [guid]::TryParse($TenantId, [ref]$tenantGuid) -or $tenantGuid -eq [guid]::Empty) {
+    throw 'An explicit non-empty tenant GUID is required for Azure login.'
+  }
 
   try {
     $tokenArgs = @('account', 'get-access-token', '--resource', 'https://graph.microsoft.com', '--output', 'none')
