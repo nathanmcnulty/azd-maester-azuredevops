@@ -48,6 +48,8 @@ Describe 'Azure DevOps runtime package integrity' {
     $runner = Get-Content -LiteralPath (Join-Path $repoRoot 'scripts/Invoke-MaesterAzureDevOpsRun.ps1') -Raw
     $pipeline = Get-Content -LiteralPath (Join-Path $repoRoot 'pipelines/template-maester.yml') -Raw
     $setup | Should -Match "Path = 'scripts/Install-LockedModules.ps1'"
+    $setup | Should -Match "Path = 'scripts/Maester.DriftInputs.psm1'"
+    $setup | Should -Match "Path = 'scripts/Maester.DriftRun.psm1'"
     $setup | Should -Match "Path = 'runtime-packages.lock.json'"
     $runner | Should -Match 'Install-LockedModules.ps1'
     $runner | Should -Match '-FederatedToken \$env:idToken'

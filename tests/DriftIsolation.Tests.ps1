@@ -4,7 +4,7 @@
 BeforeAll {
   $script:runner = Get-Content (Join-Path $PSScriptRoot '../scripts/Invoke-MaesterAzureDevOpsRun.ps1') -Raw
   $invokeStart = $script:runner.IndexOf("Write-Host 'Running Maester tests...'")
-  $invokeEnd = $script:runner.IndexOf('$generatedHtml =', $invokeStart)
+  $invokeEnd = $script:runner.IndexOf("Write-Host 'Maester execution completed.'", $invokeStart)
   if ($invokeStart -lt 0 -or $invokeEnd -lt $invokeStart) { throw 'Production Invoke-Maester isolation block was not found.' }
   $script:invokeBlock = [scriptblock]::Create($script:runner.Substring($invokeStart, $invokeEnd - $invokeStart))
   $script:originalDriftRoot = [Environment]::GetEnvironmentVariable('MAESTER_FOLDER_DRIFT', 'Process')
@@ -75,7 +75,7 @@ Describe 'Drift' { It 'must not run' { $false | Should -BeTrue } }
 '@ | Set-Content (Join-Path $driftRoot 'MT1060Drift.tests.ps1')
 
     $configStart = $script:runner.IndexOf('$pesterConfiguration = New-PesterConfiguration')
-    $configEnd = $script:runner.IndexOf('$pesterConfiguration.TestResult.Enabled', $configStart)
+    $configEnd = $script:runner.IndexOf('$maesterInvokeParameters =', $configStart)
     if ($configStart -lt 0 -or $configEnd -lt $configStart) { throw 'Production Pester configuration was not found.' }
     $configuration = $script:runner.Substring($configStart, $configEnd - $configStart)
     $harness = @'
@@ -83,6 +83,8 @@ param([string]$TestsPath)
 $ErrorActionPreference = 'Stop'
 Import-Module Pester -RequiredVersion 6.2.0 -Force
 $testsRoot = $TestsPath
+$EnableApprovedDrift = $false
+$resultsXmlPath = Join-Path ([IO.Path]::GetTempPath()) ("maester-isolation-{0}.xml" -f [guid]::NewGuid().ToString('N'))
 '@ + "`n" + $configuration + @'
 
 $pesterConfiguration.Run.Path = $TestsPath
