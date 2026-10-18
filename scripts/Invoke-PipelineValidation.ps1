@@ -61,29 +61,7 @@ function Get-AzureDevOpsCliAccessToken {
     [string]$TenantId
   )
 
-  $tokenArgs = @(
-    'account',
-    'get-access-token',
-    '--resource',
-    '499b84ac-1321-427f-aa17-267ca6975798',
-    '--query',
-    'accessToken',
-    '-o',
-    'tsv'
-  )
-  if (-not [string]::IsNullOrWhiteSpace($SubscriptionId)) {
-    $tokenArgs += @('--subscription', $SubscriptionId)
-  }
-  elseif (-not [string]::IsNullOrWhiteSpace($TenantId)) {
-    $tokenArgs += @('--tenant', $TenantId)
-  }
-
-  $token = (& az @tokenArgs 2>$null)
-  if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($token)) {
-    return ([string]$token).Trim()
-  }
-
-  return $null
+  return Get-AzCliAccessToken -Resource '499b84ac-1321-427f-aa17-267ca6975798' -SubscriptionId $SubscriptionId -TenantId $TenantId
 }
 
 function Get-AzureDevOpsAccessToken {
@@ -101,6 +79,11 @@ function Get-AzureDevOpsAccessToken {
   }
 
   try {
+    $selectedAzContext = Get-AzContext -ErrorAction Stop
+    if (-not $selectedAzContext -or -not $selectedAzContext.Subscription -or -not $selectedAzContext.Tenant -or
+        $selectedAzContext.Subscription.Id -ne $SubscriptionId -or $selectedAzContext.Tenant.Id -ne $TenantId) {
+      throw 'Azure PowerShell context does not match the validated pipeline target.'
+    }
     $tokenParams = @{ ResourceUrl = '499b84ac-1321-427f-aa17-267ca6975798' }
     if (-not [string]::IsNullOrWhiteSpace($TenantId)) {
       $tokenParams['TenantId'] = $TenantId
@@ -139,6 +122,7 @@ function Get-OptionalPropertyValue {
   return $null
 }
 
+Import-Module (Join-Path $PSScriptRoot 'vendor/Azd.MaesterHooks/Maester-SetupHelpers.psm1') -Force
 Import-Module Az.Accounts -Force
 Import-Module ADOPS -Force
 
@@ -148,6 +132,13 @@ if (-not $SubscriptionId) {
 if (-not $TenantId -and $env:AZURE_TENANT_ID) {
   $TenantId = $env:AZURE_TENANT_ID
 }
+
+if ([string]::IsNullOrWhiteSpace($SubscriptionId) -or [string]::IsNullOrWhiteSpace($TenantId)) {
+  throw 'SubscriptionId and TenantId are required to validate the intended pipeline target.'
+}
+$selectedSubscription = Get-AzCliSubscriptionContext -SubscriptionId $SubscriptionId -TenantId $TenantId
+$SubscriptionId = $selectedSubscription.id
+$TenantId = $selectedSubscription.tenantId
 
 $devOpsToken = Get-AzureDevOpsCliAccessToken -SubscriptionId $SubscriptionId -TenantId $TenantId
 

@@ -703,6 +703,14 @@ if ([string]::IsNullOrWhiteSpace($ScheduleCron)) {
   $ScheduleCron = '0 0 * * 0'
 }
 
+# Validate fresh ARM metadata before authentication or any target/permission writes.
+if ([string]::IsNullOrWhiteSpace($TenantId)) {
+  throw 'TenantId is required to validate the intended setup target.'
+}
+$selectedSubscription = Get-AzCliSubscriptionContext -SubscriptionId $SubscriptionId -TenantId $TenantId
+$SubscriptionId = $selectedSubscription.id
+$TenantId = $selectedSubscription.tenantId
+
 $existingContext = Get-AzContext -ErrorAction SilentlyContinue
 $requiresLogin = $true
 if ($existingContext -and $existingContext.Subscription -and $existingContext.Subscription.Id -eq $SubscriptionId) {
@@ -1179,7 +1187,7 @@ if ($IncludeExchange -and $exchangeSetupStatus -eq 'pending') {
       Write-Verbose "Could not resolve tenant initial domain: $($_.Exception.Message)"
     }
 
-    Connect-ExchangeOnlineSilent -Organization $exoOrganization
+    Connect-ExchangeOnlineSilent -Organization $exoOrganization -TenantId $TenantId
 
     $existingExchangeSp = $null
     foreach ($identityValue in @($servicePrincipal.DisplayName, $servicePrincipal.AppId, $servicePrincipal.Id)) {

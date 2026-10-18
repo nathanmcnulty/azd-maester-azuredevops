@@ -3,7 +3,7 @@ Describe 'Post-deployment authentication target boundary' {
     $sourcePath = Join-Path (Split-Path $PSScriptRoot -Parent) 'scripts/Setup-PostDeploy.ps1'
     $ast = [Management.Automation.Language.Parser]::ParseFile($sourcePath, [ref]$null, [ref]$null)
     $statements = @($ast.EndBlock.Statements)
-    $start = $statements | Where-Object { $_ -is [Management.Automation.Language.AssignmentStatementAst] -and $_.Left.Extent.Text -ceq '$existingContext' } | Select-Object -First 1
+    $start = $statements | Where-Object { $_ -is [Management.Automation.Language.AssignmentStatementAst] -and $_.Left.Extent.Text -ceq '$selectedSubscription' } | Select-Object -First 1
     $end = $statements | Where-Object { $_ -is [Management.Automation.Language.AssignmentStatementAst] -and $_.Left.Extent.Text -ceq '$deploymentValues' } | Select-Object -First 1
     # Execute the real authentication block and its first target-lookup statement.
     # Skip only the intervening helper dot-source; its command is mocked below.
@@ -41,7 +41,7 @@ Describe 'Post-deployment authentication target boundary' {
     Mock Get-AzCliAccessToken { 'synthetic-arm-token' }
     Mock Connect-AzAccount {}
     Mock az { $global:LASTEXITCODE = 0; 'operator@example.com' }
-    Mock Get-AzCliSubscriptionContext { $global:LASTEXITCODE = 0; [pscustomobject]@{ name = 'Selected' } }
+    Mock Get-AzCliSubscriptionContext { $global:LASTEXITCODE = 0; [pscustomobject]@{ name = 'Selected'; id = $script:subscription; tenantId = $script:tenant } }
     Mock Get-MaesterDeploymentValues { @{} }
     $SubscriptionId = $script:subscription
     $TenantId = $script:tenant
@@ -61,6 +61,18 @@ Describe 'Post-deployment authentication target boundary' {
     Should -Invoke Get-MaesterDeploymentValues -Times 1 -Exactly -ParameterFilter { $SubscriptionId -eq $script:subscription }
   }
 
+  It 'refreshes from an unrelated cached Az default into the explicitly selected target' {
+    $script:initialContext = [pscustomobject]@{
+      Subscription = [pscustomobject]@{ Id = '99999999-9999-4999-8999-999999999999' }
+      Tenant = [pscustomobject]@{ Id = '88888888-8888-4888-8888-888888888888' }
+    }
+    & $script:authBlock
+    Should -Invoke Connect-AzAccount -Times 1 -Exactly -ParameterFilter {
+      $Tenant -eq $script:tenant -and $Subscription -eq $script:subscription -and $AccessToken -ceq 'synthetic-arm-token'
+    }
+    Should -Invoke Get-MaesterDeploymentValues -Times 1 -Exactly -ParameterFilter { $SubscriptionId -eq $script:subscription }
+  }
+
   It 'rejects an unconfirmed returned context before any target lookup: <Case>' -ForEach @(
     @{ Case = 'wrong subscription'; Mode = 'subscription' }
     @{ Case = 'wrong tenant'; Mode = 'tenant' }
@@ -75,7 +87,7 @@ Describe 'Post-deployment authentication target boundary' {
     }
     { & $script:authBlock } | Should -Throw '*Azure PowerShell context*selected subscription and tenant*'
     Should -Invoke Get-MaesterDeploymentValues -Times 0 -Exactly
-    Should -Invoke Get-AzCliSubscriptionContext -Times 0 -Exactly
+    Should -Invoke Get-AzCliSubscriptionContext -Times 1 -Exactly
   }
 
   It 'uses the normal selected-tenant login when neither CLI token nor cached Az context is available' {
@@ -95,10 +107,9 @@ Describe 'Post-deployment authentication target boundary' {
     Should -Invoke Get-MaesterDeploymentValues -Times 1 -Exactly
   }
 
-  It 'infers an omitted tenant only from a context bound to the selected subscription' {
-    $TenantId = ''
+  It 'carries the tenant confirmed by ARM into the Az context and target discovery' {
     & $script:authBlock
-    Should -Invoke Get-AzCliSubscriptionContext -Times 1 -Exactly -ParameterFilter { $TenantId -eq $script:tenant }
+    Should -Invoke Get-AzCliSubscriptionContext -Times 2 -Exactly -ParameterFilter { $TenantId -eq $script:tenant }
     Should -Invoke Get-MaesterDeploymentValues -Times 1 -Exactly
   }
 }

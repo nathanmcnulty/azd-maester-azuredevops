@@ -4,6 +4,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 Import-Module (Join-Path $PSScriptRoot 'Maester-Helpers.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'Maester-SetupHelpers.psm1') -Force
 
 function Get-ValueFromEnvironmentOrAzd {
   param(
@@ -38,6 +39,13 @@ function Invoke-MaesterPreUp {
     throw "AZURE_SUBSCRIPTION_ID is required to resolve resource group '$resourceGroupName'."
   }
 
+  $tenantId = Get-ValueFromEnvironmentOrAzd -Name 'AZURE_TENANT_ID' -AzdValues $envValues
+  if ([string]::IsNullOrWhiteSpace($tenantId)) {
+    throw "AZURE_TENANT_ID is required to resolve resource group '$resourceGroupName'."
+  }
+  $context = Get-AzCliSubscriptionContext -SubscriptionId $subscriptionId -TenantId $tenantId
+  $subscriptionId = $context.id
+
   $exists = (& az group exists --name $resourceGroupName --subscription $subscriptionId -o tsv 2>$null)
   if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($exists)) {
     throw "Failed to check whether resource group '$resourceGroupName' exists."
@@ -46,6 +54,10 @@ function Invoke-MaesterPreUp {
   if ($exists.Trim().ToLowerInvariant() -eq 'true') {
     Write-Host "Using existing resource group '$resourceGroupName'."
     return
+  }
+
+  if ($exists.Trim().ToLowerInvariant() -ne 'false') {
+    throw "Invalid existence response for resource group '$resourceGroupName'."
   }
 
   $location = Get-ValueFromEnvironmentOrAzd -Name 'AZURE_LOCATION' -AzdValues $envValues
