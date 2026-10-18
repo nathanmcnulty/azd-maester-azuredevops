@@ -35,7 +35,35 @@ param(
   [string]$MailRecipient = '',
 
   [Parameter(Mandatory = $false)]
-  [string]$FailOnTestFailures = 'false'
+  [string]$FailOnTestFailures = 'false',
+
+  [Parameter(Mandatory = $false)]
+  [switch]$EnableApprovedDrift,
+
+  [Parameter(Mandatory = $false)]
+  [string]$DriftInputRoot,
+
+  [Parameter(Mandatory = $false)]
+  [string]$DriftExpectedBaselineManifestSha256,
+
+  [Parameter(Mandatory = $false)]
+  [string]$DriftExpectedTenantId,
+
+  [Parameter(Mandatory = $false)]
+  [string]$DriftEnvironment,
+
+  [Parameter(Mandatory = $false)]
+  [string]$DriftRunId,
+
+  [Parameter(Mandatory = $false)]
+  [string]$DriftProducerId,
+
+  [Parameter(Mandatory = $false)]
+  [string]$DriftProducerRevision,
+
+  [Parameter(Mandatory = $false)]
+  [ValidateRange(1, 60)]
+  [int]$DriftMaxAgeMinutes = 30
 )
 
 Set-StrictMode -Version Latest
@@ -49,6 +77,76 @@ function ConvertTo-Bool {
   }
 
   return $Value.Trim().ToLower() -eq 'true'
+}
+
+function Assert-ApprovedDriftCliOptions {
+  param(
+    [Parameter(Mandatory = $true)][bool]$Enabled,
+    [Parameter(Mandatory = $true)][System.Collections.IDictionary]$BoundParameters,
+    [string]$InputRoot,
+    [string]$ExpectedBaselineManifestSha256,
+    [string]$ExpectedTenantId,
+    [string]$ConfiguredTenantId,
+    [string]$Environment,
+    [string]$RunId,
+    [string]$ProducerId,
+    [string]$ProducerRevision,
+    [string]$StorageAccountName,
+    [string]$MailRecipient,
+    [bool]$IncludeWebApp
+  )
+
+  $driftParameterNames = @(
+    'DriftInputRoot', 'DriftExpectedBaselineManifestSha256', 'DriftExpectedTenantId',
+    'DriftEnvironment', 'DriftRunId', 'DriftProducerId', 'DriftProducerRevision',
+    'DriftMaxAgeMinutes'
+  )
+  if (-not $Enabled) {
+    foreach ($name in $driftParameterNames) {
+      if ($BoundParameters.ContainsKey($name)) { throw 'drift.optionsRequireEnablement' }
+    }
+    return
+  }
+
+  foreach ($value in @($InputRoot, $ExpectedBaselineManifestSha256, $ExpectedTenantId, $ConfiguredTenantId, $Environment, $RunId, $ProducerId, $ProducerRevision)) {
+    if ([string]::IsNullOrWhiteSpace($value)) { throw 'drift.optionsIncomplete' }
+  }
+  if ($ExpectedBaselineManifestSha256 -cnotmatch '^[0-9a-f]{64}\z' -or $ProducerRevision -cnotmatch '^[0-9a-f]{40}\z') {
+    throw 'drift.optionsInvalid'
+  }
+  if (-not [string]::Equals($ExpectedTenantId, $ConfiguredTenantId, [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'drift.tenantConfigurationMismatch'
+  }
+  if (-not [string]::IsNullOrWhiteSpace($MailRecipient) -or $IncludeWebApp) {
+    throw 'drift.publishingAudienceUnsupported'
+  }
+  if ([string]::IsNullOrWhiteSpace($StorageAccountName)) { throw 'drift.storageDestinationRequired' }
+  if ($StorageAccountName -cnotmatch '^[a-z0-9]{3,24}\z') { throw 'drift.storageDestinationInvalid' }
+}
+
+function Assert-ApprovedDriftOutputScope {
+  param(
+    [Parameter(Mandatory = $true)][string]$RunRoot,
+    [Parameter(Mandatory = $true)][AllowEmptyString()][AllowNull()][string[]]$WorkspaceRoots
+  )
+  $root = [IO.Path]::TrimEndingDirectorySeparator([IO.Path]::GetFullPath($RunRoot))
+  $comparison = if ($IsWindows) { [StringComparison]::OrdinalIgnoreCase } else { [StringComparison]::Ordinal }
+  foreach ($workspace in $WorkspaceRoots) {
+    if ([string]::IsNullOrWhiteSpace($workspace)) { continue }
+    $boundary = [IO.Path]::TrimEndingDirectorySeparator([IO.Path]::GetFullPath($workspace))
+    $prefix = $boundary.TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+    if ([string]::Equals($root, $boundary, $comparison) -or $root.StartsWith($prefix, $comparison)) {
+      throw 'drift.outputInsideWorkspace'
+    }
+  }
+}
+
+function Remove-ApprovedDriftRunRoot {
+  if (-not $EnableApprovedDrift -or $null -eq $approvedDriftRun) { return }
+  Remove-DriftOwnedDirectory `
+    -Path $approvedDriftRun.Root `
+    -Parent $approvedDriftRun.Parent `
+    -LeafPattern ('^' + [regex]::Escape($approvedDriftRun.Leaf) + '\z')
 }
 
 function ConvertTo-PlainTextToken {
@@ -218,6 +316,21 @@ $includeExchangeBool = ConvertTo-Bool -Value $IncludeExchange
 $includeTeamsBool = ConvertTo-Bool -Value $IncludeTeams
 $includeWebAppBool = ConvertTo-Bool -Value $IncludeWebApp
 $failOnTestFailuresBool = ConvertTo-Bool -Value $FailOnTestFailures
+
+Assert-ApprovedDriftCliOptions `
+  -Enabled $EnableApprovedDrift `
+  -BoundParameters $PSBoundParameters `
+  -InputRoot $DriftInputRoot `
+  -ExpectedBaselineManifestSha256 $DriftExpectedBaselineManifestSha256 `
+  -ExpectedTenantId $DriftExpectedTenantId `
+  -ConfiguredTenantId $TenantId `
+  -Environment $DriftEnvironment `
+  -RunId $DriftRunId `
+  -ProducerId $DriftProducerId `
+  -ProducerRevision $DriftProducerRevision `
+  -StorageAccountName $StorageAccountName `
+  -MailRecipient $MailRecipient `
+  -IncludeWebApp $includeWebAppBool
 
 Write-Host 'Installing hash-verified PowerShell modules...'
 $lockPath = Join-Path (Split-Path $PSScriptRoot -Parent) 'runtime-packages.lock.json'
@@ -448,127 +561,232 @@ if ($includeTeamsBool) {
 }
 
 $workingDirectory = Get-Location
-$outputFolder = Join-Path -Path $workingDirectory -ChildPath 'test-results'
-if (-not (Test-Path -Path $outputFolder)) {
-  New-Item -Path $outputFolder -ItemType Directory -Force | Out-Null
-}
+$approvedDriftRun = $null
+$approvedDriftReceipt = $null
+$approvedDriftRunResult = $null
+$approvedDriftPrimaryFailure = $null
 
-$maesterModule = Get-Module -Name Maester -ListAvailable |
-  Where-Object { $_.Version -eq [version]'2.2.0' } |
-  Select-Object -First 1
-if (-not $maesterModule) {
-  throw 'Maester module version 2.2.0 was not found after installation.'
-}
-
-$moduleRoot = Split-Path -Path $maesterModule.Path -Parent
-$testsCandidates = @(
-  (Join-Path -Path $moduleRoot -ChildPath 'maester-tests')
-  (Join-Path -Path $moduleRoot -ChildPath 'tests')
-)
-$testsRoot = $null
-foreach ($candidate in $testsCandidates) {
-  if (-not (Test-Path -Path $candidate -PathType Container)) {
-    continue
-  }
-
-  $testFile = Get-ChildItem -Path $candidate -Recurse -Filter '*.Tests.ps1' -ErrorAction SilentlyContinue | Select-Object -First 1
-  if ($testFile) {
-    $testsRoot = $candidate
-    break
-  }
-}
-
-if (-not $testsRoot) {
-  throw "Could not locate the embedded Maester 2.2.0 tests under module path '$moduleRoot'."
-}
-
-Write-Host "Using embedded Maester 2.2.0 tests from '$testsRoot'."
-
-$resultsXmlPath = Join-Path -Path $outputFolder -ChildPath 'test-results.xml'
-$latestHtmlPath = Join-Path -Path $outputFolder -ChildPath 'latest.html'
-
-$pesterConfiguration = New-PesterConfiguration
-# Drift is not enabled by this host; exclude it before input discovery.
-$pesterConfiguration.Run.ExcludePath = @((Join-Path -Path $testsRoot -ChildPath 'Maester/Drift/MT1060Drift.tests.ps1'))
-$pesterConfiguration.TestResult.Enabled = $true
-$pesterConfiguration.TestResult.OutputPath = $resultsXmlPath
-
-Write-Host 'Running Maester tests...'
-# Pipelines must stay non-interactive; never allow device-code/browser auth prompts.
-$previousDriftRoot = [Environment]::GetEnvironmentVariable('MAESTER_FOLDER_DRIFT', 'Process')
 try {
-  [Environment]::SetEnvironmentVariable('MAESTER_FOLDER_DRIFT', $null, 'Process')
-  Invoke-Maester -Path $testsRoot -PesterConfiguration $pesterConfiguration -OutputFolder $outputFolder -NonInteractive:$true -WarningAction SilentlyContinue
+  if ($EnableApprovedDrift) {
+    Import-Module (Join-Path $PSScriptRoot 'Maester.DriftInputs.psm1') -Force -ErrorAction Stop
+    Import-Module (Join-Path $PSScriptRoot 'Maester.DriftRun.psm1') -Force -ErrorAction Stop
+    Assert-MaesterDriftTenantContext -ExpectedTenantId $DriftExpectedTenantId
+    $approvedDriftRun = New-MaesterDriftRunRoot
+    Assert-ApprovedDriftOutputScope -RunRoot $approvedDriftRun.Root -WorkspaceRoots @(
+      $workingDirectory.Path, $env:BUILD_SOURCESDIRECTORY, $env:SYSTEM_DEFAULTWORKINGDIRECTORY
+    )
+    $outputFolder = $approvedDriftRun.OutputParent
+  }
+  else {
+    $outputFolder = Join-Path -Path $workingDirectory -ChildPath 'test-results'
+    if (-not (Test-Path -Path $outputFolder)) {
+      New-Item -Path $outputFolder -ItemType Directory -Force | Out-Null
+    }
+  }
+
+  $maesterModule = Get-Module -Name Maester -ListAvailable |
+    Where-Object { $_.Version -eq [version]'2.2.0' } |
+    Select-Object -First 1
+  if (-not $maesterModule) {
+    throw 'Maester module version 2.2.0 was not found after installation.'
+  }
+
+  $moduleRoot = Split-Path -Path $maesterModule.Path -Parent
+  $testsCandidates = @(
+    (Join-Path -Path $moduleRoot -ChildPath 'maester-tests')
+    (Join-Path -Path $moduleRoot -ChildPath 'tests')
+  )
+  $testsRoot = $null
+  foreach ($candidate in $testsCandidates) {
+    if (-not (Test-Path -Path $candidate -PathType Container)) {
+      continue
+    }
+
+    $testFile = Get-ChildItem -Path $candidate -Recurse -Filter '*.Tests.ps1' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($testFile) {
+      $testsRoot = $candidate
+      break
+    }
+  }
+
+  if (-not $testsRoot) {
+    throw "Could not locate the embedded Maester 2.2.0 tests under module path '$moduleRoot'."
+  }
+
+  Write-Host "Using embedded Maester 2.2.0 tests from '$testsRoot'."
+
+  if ($EnableApprovedDrift) {
+    try {
+      $approvedDriftReceipt = Initialize-MaesterDriftInput `
+        -InputRoot $DriftInputRoot `
+        -StagingParent $approvedDriftRun.StagingParent `
+        -ExpectedBaselineManifestSha256 $DriftExpectedBaselineManifestSha256 `
+        -TenantId $DriftExpectedTenantId `
+        -Environment $DriftEnvironment `
+        -RunId $DriftRunId `
+        -ProducerId $DriftProducerId `
+        -ProducerRevision $DriftProducerRevision `
+        -MaxAgeMinutes $DriftMaxAgeMinutes
+    }
+    catch {
+      $failure = [InvalidOperationException]::new('drift.inputPreparationFailed')
+      $failure.Data['PreparationException'] = $_.Exception
+      throw $failure
+    }
+  }
+
+  $resultsXmlPath = if ($EnableApprovedDrift) { $null } else { Join-Path -Path $outputFolder -ChildPath 'test-results.xml' }
+  $latestHtmlPath = if ($EnableApprovedDrift) { $null } else { Join-Path -Path $outputFolder -ChildPath 'latest.html' }
+
+  $pesterConfiguration = New-PesterConfiguration
+  # Exclude ambient drift before discovery. The explicit approved adapter removes
+  # only this exclusion after validating and privately staging approved bytes.
+  $pesterConfiguration.Run.ExcludePath = @((Join-Path -Path $testsRoot -ChildPath 'Maester/Drift/MT1060Drift.tests.ps1'))
+  if (-not $EnableApprovedDrift) {
+    $pesterConfiguration.TestResult.Enabled = $true
+    $pesterConfiguration.TestResult.OutputPath = $resultsXmlPath
+  }
+
+  $maesterInvokeParameters = @{
+    Path = $testsRoot
+    PesterConfiguration = $pesterConfiguration
+    OutputFolder = $outputFolder
+    NonInteractive = $true
+    WarningAction = 'SilentlyContinue'
+  }
+
+  Write-Host 'Running Maester tests...'
+  # Pipelines must stay non-interactive; never allow device-code/browser auth prompts.
+  $previousDriftRoot = [Environment]::GetEnvironmentVariable('MAESTER_FOLDER_DRIFT', 'Process')
+  try {
+    if ($EnableApprovedDrift) {
+      [Environment]::SetEnvironmentVariable('MAESTER_FOLDER_DRIFT', $approvedDriftReceipt.StageRoot, 'Process')
+      $approvedDriftRunResult = Invoke-MaesterApprovedDrift `
+        -Receipt $approvedDriftReceipt `
+        -RunRoot $approvedDriftRun.Root `
+        -OutputParent $approvedDriftRun.OutputParent `
+        -TestsPath $testsRoot `
+        -SuitePath (Join-Path $testsRoot 'Maester/Drift/MT1060Drift.tests.ps1') `
+        -MaesterInvokeParameters $maesterInvokeParameters
+    }
+    else {
+      [Environment]::SetEnvironmentVariable('MAESTER_FOLDER_DRIFT', [System.Management.Automation.Language.NullString]::Value, 'Process')
+      Invoke-Maester @maesterInvokeParameters
+    }
+  }
+  catch {
+    $invocationException = $_.Exception
+    if ($EnableApprovedDrift) {
+      $failure = [InvalidOperationException]::new('drift.runFailed')
+      $failure.Data['InvocationException'] = $invocationException
+      throw $failure
+    }
+    throw
+  }
+  finally {
+    $restoreDriftRoot = if ($null -eq $previousDriftRoot) { [System.Management.Automation.Language.NullString]::Value } else { $previousDriftRoot }
+    [Environment]::SetEnvironmentVariable('MAESTER_FOLDER_DRIFT', $restoreDriftRoot, 'Process')
+  }
+  Write-Host 'Maester execution completed.'
+
+  if ($EnableApprovedDrift) {
+    $latestHtmlPath = $approvedDriftRunResult.OutputHtmlPath
+    $resultsXmlPath = $approvedDriftRunResult.JunitPath
+    if (-not (Test-Path -LiteralPath $latestHtmlPath -PathType Leaf) -or (Get-Item -LiteralPath $latestHtmlPath).Length -eq 0) {
+      throw 'No nonempty approved drift HTML report was generated.'
+    }
+    Write-Host 'Selected approved drift HTML report.'
+  }
+  else {
+    $generatedHtml = Get-ChildItem -Path $outputFolder -Filter 'TestResults*.html' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if (-not $generatedHtml) {
+      $generatedHtml = Get-ChildItem -Path $outputFolder -Filter '*.html' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    }
+
+    if (-not $generatedHtml) {
+      throw "No Maester HTML report file was generated in '$outputFolder'."
+    }
+
+    if ($generatedHtml.FullName -ne $latestHtmlPath) {
+      Copy-Item -Path $generatedHtml.FullName -Destination $latestHtmlPath -Force
+    }
+
+    Write-Host "Selected Maester HTML report: $($generatedHtml.Name)"
+  }
+
+  $timestamp = (Get-Date).ToString('yyyyMMdd-HHmmss')
+  $archiveGzipPath = Join-Path -Path $outputFolder -ChildPath "maester-report-$timestamp.html.gz"
+  Compress-FileToGzip -InputFilePath $latestHtmlPath -OutputFilePath $archiveGzipPath
+
+  if (-not [string]::IsNullOrWhiteSpace($StorageAccountName)) {
+    Write-Host "Uploading reports to storage account '$StorageAccountName'..."
+    $storageContext = New-AzStorageContext -StorageAccountName $StorageAccountName -UseConnectedAccount
+
+    Set-AzStorageBlobContent -File $latestHtmlPath -Container 'latest' -Blob 'latest.html' -Context $storageContext -Force | Out-Null
+    Set-AzStorageBlobContent -File $archiveGzipPath -Container 'archive' -Blob (Split-Path -Path $archiveGzipPath -Leaf) -Context $storageContext -Force | Out-Null
+  }
+  else {
+    Write-Warning 'StorageAccountName was not provided. Skipping report upload to Azure Storage.'
+  }
+
+  if ($includeWebAppBool -and -not [string]::IsNullOrWhiteSpace($WebAppName) -and -not [string]::IsNullOrWhiteSpace($WebAppResourceGroup)) {
+    Write-Host "Publishing latest report to Web App '$WebAppName'..."
+    $webPackageDir = Join-Path -Path $outputFolder -ChildPath 'webapp-package'
+    if (Test-Path -Path $webPackageDir) {
+      Remove-Item -Path $webPackageDir -Recurse -Force
+    }
+    New-Item -Path $webPackageDir -ItemType Directory -Force | Out-Null
+
+    Copy-Item -Path $latestHtmlPath -Destination (Join-Path -Path $webPackageDir -ChildPath 'index.html') -Force
+
+    $zipPath = Join-Path -Path $outputFolder -ChildPath 'webapp-latest.zip'
+    if (Test-Path -Path $zipPath) {
+      Remove-Item -Path $zipPath -Force
+    }
+    Compress-Archive -Path (Join-Path -Path $webPackageDir -ChildPath '*') -DestinationPath $zipPath -Force
+
+    Publish-AzWebApp -ResourceGroupName $WebAppResourceGroup -Name $WebAppName -ArchivePath $zipPath -Force | Out-Null
+  }
+  elseif ($includeWebAppBool) {
+    Write-Warning 'IncludeWebApp=true but WebAppName/WebAppResourceGroup was not provided. Skipping web app publish.'
+  }
+
+  $failureCount = if ($EnableApprovedDrift) {
+    @($approvedDriftRunResult.Result.Tests | Where-Object Result -EQ 'Failed').Count
+  }
+  else {
+    Get-NUnitFailureCount -Path $resultsXmlPath
+  }
+  if ($failureCount -gt 0) {
+    $failureMessage = "$failureCount Maester test(s) failed."
+    if ($failOnTestFailuresBool) {
+      Write-Host "AZD_MAESTER_RESULT=FINDINGS;FAILED=$failureCount"
+      throw $failureMessage
+    }
+
+    Write-Warning "$failureMessage Continuing because FailOnTestFailures=false."
+  }
+
+  Write-Host 'Maester pipeline run completed successfully.'
+  Write-Host "Results XML: $resultsXmlPath"
+  Write-Host "Latest HTML: $latestHtmlPath"
+  Write-Host "Archive gzip: $archiveGzipPath"
+}
+catch {
+  $approvedDriftPrimaryFailure = $_.Exception
+  throw
 }
 finally {
-  [Environment]::SetEnvironmentVariable('MAESTER_FOLDER_DRIFT', $previousDriftRoot, 'Process')
-}
-
-
-$generatedHtml = Get-ChildItem -Path $outputFolder -Filter 'TestResults*.html' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-if (-not $generatedHtml) {
-  $generatedHtml = Get-ChildItem -Path $outputFolder -Filter '*.html' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-}
-
-if (-not $generatedHtml) {
-  throw "No Maester HTML report file was generated in '$outputFolder'."
-}
-
-if ($generatedHtml.FullName -ne $latestHtmlPath) {
-  Copy-Item -Path $generatedHtml.FullName -Destination $latestHtmlPath -Force
-}
-
-Write-Host "Selected Maester HTML report: $($generatedHtml.Name)"
-
-$timestamp = (Get-Date).ToString('yyyyMMdd-HHmmss')
-$archiveGzipPath = Join-Path -Path $outputFolder -ChildPath "maester-report-$timestamp.html.gz"
-Compress-FileToGzip -InputFilePath $latestHtmlPath -OutputFilePath $archiveGzipPath
-
-if (-not [string]::IsNullOrWhiteSpace($StorageAccountName)) {
-  Write-Host "Uploading reports to storage account '$StorageAccountName'..."
-  $storageContext = New-AzStorageContext -StorageAccountName $StorageAccountName -UseConnectedAccount
-
-  Set-AzStorageBlobContent -File $latestHtmlPath -Container 'latest' -Blob 'latest.html' -Context $storageContext -Force | Out-Null
-  Set-AzStorageBlobContent -File $archiveGzipPath -Container 'archive' -Blob (Split-Path -Path $archiveGzipPath -Leaf) -Context $storageContext -Force | Out-Null
-}
-else {
-  Write-Warning 'StorageAccountName was not provided. Skipping report upload to Azure Storage.'
-}
-
-if ($includeWebAppBool -and -not [string]::IsNullOrWhiteSpace($WebAppName) -and -not [string]::IsNullOrWhiteSpace($WebAppResourceGroup)) {
-  Write-Host "Publishing latest report to Web App '$WebAppName'..."
-  $webPackageDir = Join-Path -Path $outputFolder -ChildPath 'webapp-package'
-  if (Test-Path -Path $webPackageDir) {
-    Remove-Item -Path $webPackageDir -Recurse -Force
+  if ($EnableApprovedDrift -and $null -ne $approvedDriftRun) {
+    try {
+      Remove-ApprovedDriftRunRoot
+    }
+    catch {
+      $failure = [InvalidOperationException]::new('drift.runCleanupFailed')
+      $failure.Data['RunRoot'] = $approvedDriftRun.Root
+      $failure.Data['CleanupException'] = $_.Exception
+      if ($null -ne $approvedDriftPrimaryFailure) { $failure.Data['PrimaryException'] = $approvedDriftPrimaryFailure }
+      throw $failure
+    }
   }
-  New-Item -Path $webPackageDir -ItemType Directory -Force | Out-Null
-
-  Copy-Item -Path $latestHtmlPath -Destination (Join-Path -Path $webPackageDir -ChildPath 'index.html') -Force
-
-  $zipPath = Join-Path -Path $outputFolder -ChildPath 'webapp-latest.zip'
-  if (Test-Path -Path $zipPath) {
-    Remove-Item -Path $zipPath -Force
-  }
-  Compress-Archive -Path (Join-Path -Path $webPackageDir -ChildPath '*') -DestinationPath $zipPath -Force
-
-  Publish-AzWebApp -ResourceGroupName $WebAppResourceGroup -Name $WebAppName -ArchivePath $zipPath -Force | Out-Null
 }
-elseif ($includeWebAppBool) {
-  Write-Warning 'IncludeWebApp=true but WebAppName/WebAppResourceGroup was not provided. Skipping web app publish.'
-}
-
-$failureCount = Get-NUnitFailureCount -Path $resultsXmlPath
-if ($failureCount -gt 0) {
-  $failureMessage = "$failureCount Maester test(s) failed."
-  if ($failOnTestFailuresBool) {
-    Write-Host "AZD_MAESTER_RESULT=FINDINGS;FAILED=$failureCount"
-    throw $failureMessage
-  }
-
-  Write-Warning "$failureMessage Continuing because FailOnTestFailures=false."
-}
-
-Write-Host 'Maester pipeline run completed successfully.'
-Write-Host "Results XML: $resultsXmlPath"
-Write-Host "Latest HTML: $latestHtmlPath"
-Write-Host "Archive gzip: $archiveGzipPath"

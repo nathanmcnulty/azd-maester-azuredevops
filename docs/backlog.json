@@ -1,8 +1,8 @@
 {
   "schemaVersion": "1.0.0",
   "repository": "nathanmcnulty/azd-maester-azuredevops",
-  "sourceRevision": "8fd330ba59db6ad18b13f8383c699b8720dc7168",
-  "capturedAt": "2026-10-16",
+  "sourceRevision": "385f613a15e640cff0b6e084440665b842b24ca6",
+  "capturedAt": "2026-10-18",
   "items": [
     {
       "id": "MADO-001",
@@ -424,7 +424,7 @@
       "title": "Implement approved data-only configuration drift inputs",
       "kind": "feature",
       "priority": "P2",
-      "status": "proposed",
+      "status": "in-progress",
       "wave": 4,
       "problem": "Upstream drift comparison exists, but this host has no approved artifact/target/privacy contract or live qualification.",
       "scope": [
@@ -449,12 +449,27 @@
       "authorization": "local-only",
       "components": [],
       "sources": [
+        "docs/drift-input-contract.md",
         "docs/drift-isolation.md",
         "https://github.com/nathanmcnulty/azd-maester/blob/090001c61660d6522d2c5d4df6581af297015b35/docs/drift-analysis-design.md",
-        "https://github.com/nathanmcnulty/azd-maester/issues/2"
+        "https://github.com/nathanmcnulty/azd-maester/issues/2",
+        "https://github.com/nathanmcnulty/azd-maester-containerappjob/commit/5132a5320969d15ff8b707b5f4b97e2817aee3f3",
+        "https://github.com/nathanmcnulty/azd-maester-containerappjob/pull/31"
       ],
-      "evidence": [],
-      "blocker": null
+      "evidence": [
+        "Claimed at exact Azure DevOps base 385f613a15e640cff0b6e084440665b842b24ca6 on 2026-10-18T06:51:58Z. The host-local input and run modules port reviewed Container Apps Job commit 5132a5320969d15ff8b707b5f4b97e2817aee3f3 and bind manifests to host azuredevops; this does not claim a shared component or second-host qualification.",
+        "The source adapter is manual and default-off. It fails closed on partial or foreign target options before authentication, validates and privately stages approved data, verifies exact locked-suite/result accounting, removes the bound stage before existing private Blob publication, keeps drift JUnit outside the normal NUnit publisher, restores reused-process environment state and removes only its exact owned private run root.",
+        "Before the final workspace-output guard, PowerShell 7.6.6/Pester 6.2.0 repository validation passed 143/143 tests with zero nonpasses. After adding that guard, the current production option/invocation/cleanup/isolation/output-scope fixtures passed 35/35. Source fixtures also cover host binding and pipeline file inclusion. Authorized native host/report access/retention/rollback/exact-cleanup evidence remain required before completion.",
+        "Source-bound local qualification used freshly hash-verified Maester 2.2.0/Pester 6.2.0 package members and the exact locked drift suite through production configuration/invocation blocks: three ambient-state cases each returned nine checks, seven passes, two intentional findings, zero errors, exact state restoration, unchanged source inputs and owned stage/root cleanup; an actual BeforeDiscovery failure was rejected. HTTP/auth tripwires recorded zero attempts. This does not qualify full bootstrap, a native pipeline, identity, Blob publication/access/retention or rollback.",
+        "Privacy inspection found planted baseline/current strings in HTML, JSON and Markdown reports, but not captured logs/summary/JUnit in the synthetic fixture. The host now rejects temporary output under any published workspace before input/report writes, including TEMP/TMP configured inside checkout; real-data privacy and existing Blob audience/retention gates remain open."
+      ],
+      "blocker": null,
+      "claim": {
+        "owner": "Codex /root/ado_drift_implementation",
+        "worktree": "codex/ado-approved-drift-inputs-20261018",
+        "baseRevision": "385f613a15e640cff0b6e084440665b842b24ca6",
+        "startedAt": "2026-10-18T06:51:58Z"
+      }
     }
   ]
 }

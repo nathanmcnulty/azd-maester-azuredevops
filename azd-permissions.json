@@ -433,7 +433,7 @@
       "evidence": [
         {
           "path": "scripts/Setup-PostDeploy.ps1",
-          "sha256": "059ac1c8a9eb375a2b68a2a1dfac6543a6efa8e82019e78cc3ab4f4b27f6cb1f"
+          "sha256": "5bf8ad16190da13d41073020e1d19c48ac275d1136763af8af700937746d66ac"
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
@@ -451,6 +451,6 @@
     "Optional Azure setup is not inventoried: workload Reader at operator-selected subscription or management-group scopes and the operator authority used to create and remove those assignments.",
     "Optional report web app setup is not inventoried: workload Website Contributor, Group.Read.All and Directory.Read.All for group resolution, Application.ReadWrite.All, Directory.Read.All and DelegatedPermissionGrant.ReadWrite.All for Easy Auth, the tenant-wide openid/profile/email/User.Read delegated grant, and cleanup authority.",
     "Cleanup authority and ownership boundaries for Azure RBAC, Microsoft Graph, Azure DevOps, Exchange, Teams, and web-app objects require separate review before any removal workflow is authorized.",
-    "Default-disabled drift isolation adds no permission or collector. Approved drift inputs, normalization/privacy and any future source collection/publication authority need separate review; existing permission evidence and runtime validation gates are unchanged."
+    "Manual approved drift comparison adds no permission or collector and reuses the existing workload Blob publication route. Input acquisition, normalization/privacy, private Blob reader/retention review, and any future source collection authority remain outside this manifest and require separate evidence; existing runtime validation gates are unchanged."
   ]
 }

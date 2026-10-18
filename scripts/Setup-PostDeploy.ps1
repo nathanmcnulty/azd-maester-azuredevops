@@ -1556,6 +1556,8 @@ $pipelineRepoPath = $pipelineRepoPath.TrimStart('/')
 $templateContent = Get-Content -Path $pipelineTemplatePath -Raw
 $runnerScriptContent = Get-Content -Path (Join-Path -Path $PSScriptRoot -ChildPath 'Invoke-MaesterAzureDevOpsRun.ps1') -Raw
 $moduleInstallerContent = Get-Content -Path (Join-Path -Path $PSScriptRoot -ChildPath 'Install-LockedModules.ps1') -Raw
+$driftInputsContent = Get-Content -Path (Join-Path -Path $PSScriptRoot -ChildPath 'Maester.DriftInputs.psm1') -Raw
+$driftRunContent = Get-Content -Path (Join-Path -Path $PSScriptRoot -ChildPath 'Maester.DriftRun.psm1') -Raw
 $moduleLockContent = Get-Content -Path (Join-Path -Path $projectRoot -ChildPath 'runtime-packages.lock.json') -Raw
 
 $replacementMap = @{
@@ -1593,6 +1595,14 @@ $pipelineFiles = @(
   [pscustomobject]@{
     Path = 'scripts/Install-LockedModules.ps1'
     Content = $moduleInstallerContent
+  },
+  [pscustomobject]@{
+    Path = 'scripts/Maester.DriftInputs.psm1'
+    Content = $driftInputsContent
+  },
+  [pscustomobject]@{
+    Path = 'scripts/Maester.DriftRun.psm1'
+    Content = $driftRunContent
   },
   [pscustomobject]@{
     Path = 'runtime-packages.lock.json'
