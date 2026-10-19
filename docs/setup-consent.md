@@ -21,11 +21,15 @@ changes, restoration verification and coverage limits.
 An administrator must separately create and consent a tenant-owned, single-tenant
 public-client application for interactive delegated setup. Configure its exact
 client ID as `MAESTER_SETUP_CLIENT_ID` and the operator's exact sign-in account
-as `MAESTER_SETUP_ACCOUNT`. Use the normal browser redirect supported by the
-Microsoft Graph SDK (for example `http://localhost`) and enable public-client
-flows as required. Setup never creates its own privileged setup client or
-consents itself, and rejects built-in shared clients and runtime/setup identity
-reuse. The runtime app is a separate federated Application service principal.
+as `MAESTER_SETUP_ACCOUNT`. Configure the **Mobile and desktop applications**
+public-client redirect exactly as `http://localhost`, as required by canonical
+setup-client verification. Require assignment on the enterprise application and
+assign only designated setup administrators or groups. Do not enable additional
+authentication flows to work around a failed normal browser or broker login.
+Follow the [pinned canonical administrator bootstrap instructions](https://github.com/nathanmcnulty/azd-reference/blob/552ade2f0267e6872bd681f9a1d8a67ac72d055b/docs/maester-consent-flow.md#one-time-authorized-administrator-bootstrap).
+Setup never creates its own privileged setup client or consents itself, and
+rejects built-in shared clients and runtime/setup identity reuse. The runtime app
+is a separate federated Application service principal.
 
 The canonical delegated-session coordinator requires the exact selected tenant,
 client, account and complete selected scope union before any inventory or writes:
@@ -50,7 +54,8 @@ Disconnect or delete cached authentication. However, Microsoft Graph SDK 2.41
 still touches its shared `~/.mg` authentication record and may remove that record
 on an authentication failure; Process is not a complete filesystem-isolation
 promise. The coordinator requests browser authentication, not device code, but
-the SDK can internally fall back to device code.
+the SDK can internally fall back to device code. Stop an unexpected device-code
+prompt and review the shared-record effect with the operator before sign-in.
 
 Directory.Read.All covers direct directory-role-assignment inventory according
 to the [official unifiedRoleAssignments permission table](https://learn.microsoft.com/graph/api/rbacapplication-list-roleassignments?view=graph-rest-1.0).
