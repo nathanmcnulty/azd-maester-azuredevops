@@ -29,6 +29,8 @@ Describe 'Azure DevOps repository staging path' {
     }
     $script:cloneDestination = $null
     $script:failClone = $false
+    $script:filterChangesBytes = $false
+    $script:writtenBytes = $null
     Remove-Item Env:TEMP -ErrorAction SilentlyContinue
 
     function git {
@@ -40,6 +42,8 @@ Describe 'Azure DevOps repository staging path' {
         }
       }
       $global:LASTEXITCODE = 0
+      if ($args -contains 'hash-object') { $script:writtenBytes = [IO.File]::ReadAllBytes([string]$args[-1]); return ('a' * 40) }
+      if ($args -contains 'rev-parse') { if ($script:filterChangesBytes -and [string]$args[-1] -like ':*') { return ('b' * 40) }; return ('a' * 40) }
     }
   }
 
@@ -66,10 +70,19 @@ Describe 'Azure DevOps repository staging path' {
       -BearerToken 'fixture-token' `
       -Files @([pscustomobject]@{ Path = 'azure-pipelines.yml'; Content = 'fixture' })
 
+    [Text.Encoding]::UTF8.GetString($script:writtenBytes) | Should -BeExactly 'fixture'
+    $result.CommitId | Should -BeExactly ('a' * 40)
     $result.Pushed | Should -BeFalse
     $result.Changed | Should -BeFalse
     $script:cloneDestination | Should -Not -BeNullOrEmpty
     $script:cloneDestination | Should -BeLike "$([IO.Path]::GetTempPath())*"
+    Test-Path -LiteralPath $script:cloneDestination | Should -BeFalse
+  }
+
+  It 'blocks publication when Git filters transform reviewed bytes' {
+    $script:filterChangesBytes = $true
+    { Push-RepositoryFiles -RepositoryUrl 'https://example.invalid/repository' -Branch main -BearerToken 'fixture-token' -Files @([pscustomobject]@{ Path = 'azure-pipelines.yml'; Content = "fixture`r`n" }) } | Should -Throw '*Git changed reviewed publication bytes*'
+    [Text.Encoding]::UTF8.GetString($script:writtenBytes) | Should -BeExactly "fixture`r`n"
     Test-Path -LiteralPath $script:cloneDestination | Should -BeFalse
   }
 

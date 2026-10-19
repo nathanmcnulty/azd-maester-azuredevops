@@ -2,10 +2,28 @@
   "manifestVersion": "1.0",
   "components": [
     {
-      "id": "maester-azd-hooks",
-      "version": "1.0.0",
+      "id": "graph-delegated-authentication",
+      "version": "1.1.0",
       "sourceRepository": "https://github.com/nathanmcnulty/azd-reference",
-      "sourceRevision": "fd26f7351f36c569067ae37edcb35d6b6cc40f29",
+      "sourceRevision": "552ade2f0267e6872bd681f9a1d8a67ac72d055b",
+      "files": [
+        {
+          "source": "components/powershell/graph-delegated-authentication/Azd.GraphAuthentication.psd1",
+          "target": "scripts/vendor/Azd.GraphAuthentication/Azd.GraphAuthentication.psd1",
+          "sha256": "39dbd54429ca79dbb5f28440175e331d6d5f8b5a70f0082afeaeb5d6b1be95bd"
+        },
+        {
+          "source": "components/powershell/graph-delegated-authentication/Azd.GraphAuthentication.psm1",
+          "target": "scripts/vendor/Azd.GraphAuthentication/Azd.GraphAuthentication.psm1",
+          "sha256": "c9eefb605c3fd685e3a3b7fdc849303779eccdbff6bf08ecde7bbb7929504b17"
+        }
+      ]
+    },
+    {
+      "id": "maester-azd-hooks",
+      "version": "2.1.0",
+      "sourceRepository": "https://github.com/nathanmcnulty/azd-reference",
+      "sourceRevision": "552ade2f0267e6872bd681f9a1d8a67ac72d055b",
       "files": [
         {
           "source": "components/powershell/maester-azd-hooks/Get-ManagedIdentityPrincipal.ps1",
@@ -15,7 +33,7 @@
         {
           "source": "components/powershell/maester-azd-hooks/Grant-MaesterGraphPermissions.ps1",
           "target": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "c15f59ad9a997278332cba8a80cf4f28c12b7321cf2f95144bd80510c43b9279"
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
         },
         {
           "source": "components/powershell/maester-azd-hooks/Maester-Helpers.psm1",
@@ -30,7 +48,7 @@
         {
           "source": "components/powershell/maester-azd-hooks/Maester-PreProvision.psm1",
           "target": "scripts/vendor/Azd.MaesterHooks/Maester-PreProvision.psm1",
-          "sha256": "5d41430342a6a31651d89d094633768142eb00d31918eda46a88ffc876ceb929"
+          "sha256": "e2d0c0c000e8d08e9667291b6ff53888a75df2cf372f16522729ef09431b08b3"
         },
         {
           "source": "components/powershell/maester-azd-hooks/Maester-PreUp.psm1",
@@ -40,12 +58,22 @@
         {
           "source": "components/powershell/maester-azd-hooks/Maester-SetupHelpers.psm1",
           "target": "scripts/vendor/Azd.MaesterHooks/Maester-SetupHelpers.psm1",
-          "sha256": "293ddf7d6da04ba780e80cbe30b2e99bc9bbb731b3ff3a0dd3dd93c714bf8b74"
+          "sha256": "11acfa972e1734e014d760f4204949708f0e9b41c89091637a08b38627929c23"
         },
         {
           "source": "components/powershell/maester-azd-hooks/Maester-UpWizard.psm1",
           "target": "scripts/vendor/Azd.MaesterHooks/Maester-UpWizard.psm1",
-          "sha256": "aa88f4f8a65d41ae6b06a1008c55eb1e2fbedebbb07b5f2f987c4452baf363c0"
+          "sha256": "f19c2ad583811124bfd211d4ad62b5c4c7387a3ea1d336e6d3d11c546704f479"
+        },
+        {
+          "source": "components/powershell/maester-azd-hooks/Maester-ConsentPlan.psm1",
+          "target": "scripts/vendor/Azd.MaesterHooks/Maester-ConsentPlan.psm1",
+          "sha256": "c865a883c3e30ccf05d0a7aae6d8279ca1456c1bee6041192ad6b9d2882810f9"
+        },
+        {
+          "source": "components/powershell/maester-azd-hooks/Maester-GraphPermissions.json",
+          "target": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
         }
       ]
     },

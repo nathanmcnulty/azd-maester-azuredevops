@@ -35,6 +35,18 @@ param(
   [string]$MailRecipient = '',
 
   [Parameter(Mandatory = $false)]
+  [ValidateSet('true', 'false')]
+  [string]$IncludeMailSend = 'false',
+
+  [Parameter(Mandatory = $false)]
+  [ValidateSet('true', 'false')]
+  [string]$IncludeReportSettingsWrite = 'false',
+
+  [Parameter(Mandatory = $false)]
+  [ValidateSet('Full', 'Minimal', 'Extended')]
+  [string]$PermissionProfile = 'Full',
+
+  [Parameter(Mandatory = $false)]
   [string]$FailOnTestFailures = 'false',
 
   [Parameter(Mandatory = $false)]
@@ -316,6 +328,10 @@ $includeExchangeBool = ConvertTo-Bool -Value $IncludeExchange
 $includeTeamsBool = ConvertTo-Bool -Value $IncludeTeams
 $includeWebAppBool = ConvertTo-Bool -Value $IncludeWebApp
 $failOnTestFailuresBool = ConvertTo-Bool -Value $FailOnTestFailures
+$includeMailSendBool = ConvertTo-Bool -Value $IncludeMailSend
+$includeReportSettingsWriteBool = ConvertTo-Bool -Value $IncludeReportSettingsWrite
+if ($includeMailSendBool -and [string]::IsNullOrWhiteSpace($MailRecipient)) { throw 'assessment.mailRecipientRequired' }
+if ($EnableApprovedDrift -and ($includeMailSendBool -or $includeReportSettingsWriteBool)) { throw 'drift.optionalCapabilitiesUnsupported' }
 
 Assert-ApprovedDriftCliOptions `
   -Enabled $EnableApprovedDrift `
@@ -356,6 +372,20 @@ if ($includeWebAppBool) {
   Import-Module Az.Websites -RequiredVersion $versions['Az.Websites'] -Force -ErrorAction Stop
 }
 
+Import-Module (Join-Path $PSScriptRoot 'Maester.AssessmentEvidence.psm1') -Force -ErrorAction Stop
+$assessmentStartedAt = [datetimeoffset]::UtcNow
+$evidenceSource = Get-MaesterEvidenceSource -ScriptsRoot $PSScriptRoot -LockPath $lockPath
+$evidenceModules = [ordered]@{}
+$runtimeModuleNames = @('PackageManagement', 'PowerShellGet', 'Az.Accounts', 'Az.Storage', 'Microsoft.Graph.Authentication', 'Pester', 'Maester')
+if ($includeExchangeBool) { $runtimeModuleNames += 'ExchangeOnlineManagement' }
+if ($includeTeamsBool) { $runtimeModuleNames += 'MicrosoftTeams' }
+if ($includeWebAppBool) { $runtimeModuleNames += 'Az.Websites' }
+foreach ($name in $runtimeModuleNames) {
+  $loaded = @(Get-Module -Name $name)
+  if ($loaded.Count -ne 1 -or $loaded[0].Version -ne [version]$versions[$name]) { throw 'assessment.moduleIdentityMismatch' }
+  $evidenceModules[$name] = $loaded[0].Version.ToString()
+}
+
 if ([string]::IsNullOrWhiteSpace($env:idToken) -or [string]::IsNullOrWhiteSpace($env:servicePrincipalId) -or
     [string]::IsNullOrWhiteSpace($env:tenantId)) {
   throw 'Azure DevOps workload identity token was not supplied by the service connection.'
@@ -380,7 +410,10 @@ if ($azCtx -and $azCtx.Subscription) {
 Write-Host 'Acquiring Microsoft Graph token and connecting...'
 $graphAccessToken = Get-AzAccessTokenPlainText -ResourceUrl 'https://graph.microsoft.com' -Tenant $TenantId
 $graphSecureToken = ConvertTo-SecureString -String $graphAccessToken -AsPlainText -Force
-Connect-MgGraph -AccessToken $graphSecureToken -NoWelcome
+Connect-MgGraph -AccessToken $graphSecureToken -NoWelcome -ErrorAction Stop
+$capabilityEvidence = Get-MaesterRuntimeCapabilities -Context (Get-MgContext -ErrorAction Stop) `
+  -PermissionProfile $PermissionProfile -IncludeMailSend $includeMailSendBool -IncludeReportSettingsWrite $includeReportSettingsWriteBool
+Write-Host ("Declared Graph read profile: {0} ({1} roles). Workload coverage remains partial; no permission-based test filters are applied." -f $capabilityEvidence.DeclaredProfile, $capabilityEvidence.DeclaredReadRoleCount)
 
 if ($includeExchangeBool) {
   Write-Host 'Connecting to Exchange Online with workload identity token...'
@@ -445,7 +478,7 @@ if ($includeExchangeBool) {
         $exoRetryDelay = [Math]::Min($exoRetryDelay * 2, 120)
       }
       else {
-        Write-Warning ("Exchange Online connection failed after {0} attempts. Exchange-related tests may be skipped. Last error: {1}" -f $exoMaxAttempts, $_.Exception.Message)
+        throw 'assessment.exchangeConnectionFailed'
       }
     }
   }
@@ -467,7 +500,7 @@ if ($includeExchangeBool) {
       Write-Host 'Security & Compliance (IPPS) connection established.'
     }
     catch {
-      Write-Warning ("Security & Compliance (IPPS) connection failed. Compliance-related tests may be skipped. Error: {0}" -f $_.Exception.Message)
+      throw 'assessment.complianceConnectionFailed'
     }
   }
 }
@@ -552,11 +585,11 @@ if ($includeTeamsBool) {
     }
 
     if (-not $teamsConnected) {
-      Write-Warning 'Microsoft Teams connection failed. Teams-related tests may be skipped. Non-interactive app auth requires a supported Teams directory role (for example Teams Administrator or Teams Communications Administrator).'
+      throw 'assessment.teamsConnectionFailed'
     }
   }
   catch {
-    Write-Warning ("Microsoft Teams connection failed. Teams-related tests may be skipped. Error: {0}" -f $_.Exception.Message)
+    throw 'assessment.teamsConnectionFailed'
   }
 }
 
@@ -585,10 +618,10 @@ try {
   }
 
   $maesterModule = Get-Module -Name Maester -ListAvailable |
-    Where-Object { $_.Version -eq [version]'2.2.0' } |
+    Where-Object { $_.Version -eq [version]'2.3.0' } |
     Select-Object -First 1
   if (-not $maesterModule) {
-    throw 'Maester module version 2.2.0 was not found after installation.'
+    throw 'Maester module version 2.3.0 was not found after installation.'
   }
 
   $moduleRoot = Split-Path -Path $maesterModule.Path -Parent
@@ -610,10 +643,10 @@ try {
   }
 
   if (-not $testsRoot) {
-    throw "Could not locate the embedded Maester 2.2.0 tests under module path '$moduleRoot'."
+    throw "Could not locate the embedded Maester 2.3.0 tests under module path '$moduleRoot'."
   }
 
-  Write-Host "Using embedded Maester 2.2.0 tests from '$testsRoot'."
+  Write-Host "Using embedded Maester 2.3.0 tests from '$testsRoot'."
 
   if ($EnableApprovedDrift) {
     try {
@@ -637,6 +670,13 @@ try {
 
   $resultsXmlPath = if ($EnableApprovedDrift) { $null } else { Join-Path -Path $outputFolder -ChildPath 'test-results.xml' }
   $latestHtmlPath = if ($EnableApprovedDrift) { $null } else { Join-Path -Path $outputFolder -ChildPath 'latest.html' }
+  # Fixed output names are fresh for this invocation; never select an older report.
+  if (-not $EnableApprovedDrift) {
+    foreach ($name in @('assessment.html','assessment.json','assessment.md','assessment-summary.md','test-results.xml','assessment-evidence.json','latest.html')) {
+      $oldPath = Join-Path $outputFolder $name
+      if (Test-Path -LiteralPath $oldPath) { Remove-Item -LiteralPath $oldPath -Force -ErrorAction Stop }
+    }
+  }
 
   $pesterConfiguration = New-PesterConfiguration
   # Exclude ambient drift before discovery. The explicit approved adapter removes
@@ -645,6 +685,8 @@ try {
   if (-not $EnableApprovedDrift) {
     $pesterConfiguration.TestResult.Enabled = $true
     $pesterConfiguration.TestResult.OutputPath = $resultsXmlPath
+    $pesterConfiguration.TestResult.OutputFormat = 'JUnitXml'
+    $pesterConfiguration.TestResult.OutputEncoding = 'UTF8'
   }
 
   $maesterInvokeParameters = @{
@@ -652,9 +694,13 @@ try {
     PesterConfiguration = $pesterConfiguration
     OutputFolder = $outputFolder
     NonInteractive = $true
-    WarningAction = 'SilentlyContinue'
+    PassThru = $true
+    OutputFolderFileName = 'assessment'
+    DisableTelemetry = $true
+    SkipVersionCheck = $true
   }
 
+  $reportPrivacyBefore = if ($includeReportSettingsWriteBool) { Get-MaesterReportPrivacyState -ErrorAction Stop } else { $null }
   Write-Host 'Running Maester tests...'
   # Pipelines must stay non-interactive; never allow device-code/browser auth prompts.
   $previousDriftRoot = [Environment]::GetEnvironmentVariable('MAESTER_FOLDER_DRIFT', 'Process')
@@ -671,7 +717,7 @@ try {
     }
     else {
       [Environment]::SetEnvironmentVariable('MAESTER_FOLDER_DRIFT', [System.Management.Automation.Language.NullString]::Value, 'Process')
-      Invoke-Maester @maesterInvokeParameters
+      $maesterOutput = @(Invoke-Maester @maesterInvokeParameters)
     }
   }
   catch {
@@ -686,6 +732,11 @@ try {
   finally {
     $restoreDriftRoot = if ($null -eq $previousDriftRoot) { [System.Management.Automation.Language.NullString]::Value } else { $previousDriftRoot }
     [Environment]::SetEnvironmentVariable('MAESTER_FOLDER_DRIFT', $restoreDriftRoot, 'Process')
+    if ($includeReportSettingsWriteBool) {
+      # Upstream restoration is best effort. No success/finding evidence is
+      # allowed unless a fresh read verifies the prior tenant privacy setting.
+      Assert-MaesterReportPrivacyRestored -Expected $reportPrivacyBefore -ErrorAction Stop
+    }
   }
   Write-Host 'Maester execution completed.'
 
@@ -698,21 +749,17 @@ try {
     Write-Host 'Selected approved drift HTML report.'
   }
   else {
-    $generatedHtml = Get-ChildItem -Path $outputFolder -Filter 'TestResults*.html' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-    if (-not $generatedHtml) {
-      $generatedHtml = Get-ChildItem -Path $outputFolder -Filter '*.html' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-    }
-
-    if (-not $generatedHtml) {
-      throw "No Maester HTML report file was generated in '$outputFolder'."
-    }
-
-    if ($generatedHtml.FullName -ne $latestHtmlPath) {
-      Copy-Item -Path $generatedHtml.FullName -Destination $latestHtmlPath -Force
-    }
-
-    Write-Host "Selected Maester HTML report: $($generatedHtml.Name)"
+    $reportPath = Join-Path $outputFolder 'assessment.html'
+    $assessmentEvidence = Get-MaesterAssessmentEvidence -Output $maesterOutput -JunitPath $resultsXmlPath -TestsPath $testsRoot -ReportPath $reportPath
+    Copy-Item -LiteralPath $reportPath -Destination $latestHtmlPath -Force -ErrorAction Stop
   }
+  if ($EnableApprovedDrift) {
+    # Validate the entire result, including ordinary assessment errors; the
+    # drift adapter's exact-case contract alone is not a full-suite health gate.
+    $assessmentEvidence = Get-MaesterAssessmentEvidence -Output @($approvedDriftRunResult.Result) -JunitPath $resultsXmlPath -TestsPath $testsRoot -ReportPath $latestHtmlPath
+  }
+  Write-Host ("Assessment counts: Total={0}; Passed={1}; Failed={2}; Error={3}; Investigate={4}; Skipped={5}; NotRun={6}" -f $assessmentEvidence.Counts.TotalCount, $assessmentEvidence.Counts.PassedCount, $assessmentEvidence.Counts.FailedCount, $assessmentEvidence.Counts.ErrorCount, $assessmentEvidence.Counts.InvestigateCount, $assessmentEvidence.Counts.SkippedCount, $assessmentEvidence.Counts.NotRunCount)
+  $publication = [ordered]@{ Archive='Disabled'; Latest='Disabled'; WebApp='Disabled'; Mail='Disabled' }
 
   $timestamp = (Get-Date).ToString('yyyyMMdd-HHmmss')
   $archiveGzipPath = Join-Path -Path $outputFolder -ChildPath "maester-report-$timestamp.html.gz"
@@ -722,8 +769,10 @@ try {
     Write-Host "Uploading reports to storage account '$StorageAccountName'..."
     $storageContext = New-AzStorageContext -StorageAccountName $StorageAccountName -UseConnectedAccount
 
-    Set-AzStorageBlobContent -File $latestHtmlPath -Container 'latest' -Blob 'latest.html' -Context $storageContext -Force | Out-Null
-    Set-AzStorageBlobContent -File $archiveGzipPath -Container 'archive' -Blob (Split-Path -Path $archiveGzipPath -Leaf) -Context $storageContext -Force | Out-Null
+    Set-AzStorageBlobContent -File $latestHtmlPath -Container 'latest' -Blob 'latest.html' -Context $storageContext -Force -ErrorAction Stop | Out-Null
+    $publication.Latest = 'Published'
+    Set-AzStorageBlobContent -File $archiveGzipPath -Container 'archive' -Blob (Split-Path -Path $archiveGzipPath -Leaf) -Context $storageContext -Force -ErrorAction Stop | Out-Null
+    $publication.Archive = 'Published'
   }
   else {
     Write-Warning 'StorageAccountName was not provided. Skipping report upload to Azure Storage.'
@@ -745,18 +794,35 @@ try {
     }
     Compress-Archive -Path (Join-Path -Path $webPackageDir -ChildPath '*') -DestinationPath $zipPath -Force
 
-    Publish-AzWebApp -ResourceGroupName $WebAppResourceGroup -Name $WebAppName -ArchivePath $zipPath -Force | Out-Null
+    Publish-AzWebApp -ResourceGroupName $WebAppResourceGroup -Name $WebAppName -ArchivePath $zipPath -Force -ErrorAction Stop | Out-Null
+    $publication.WebApp = 'Published'
   }
   elseif ($includeWebAppBool) {
-    Write-Warning 'IncludeWebApp=true but WebAppName/WebAppResourceGroup was not provided. Skipping web app publish.'
+    throw 'assessment.webAppDestinationRequired'
   }
 
-  $failureCount = if ($EnableApprovedDrift) {
-    @($approvedDriftRunResult.Result.Tests | Where-Object Result -EQ 'Failed').Count
+  # Never send inline from Invoke-Maester before the health gate. Recipient
+  # configuration alone is inert; this explicit capability remains default-off.
+  if ($includeMailSendBool) {
+    $assessmentResult = @($maesterOutput | Where-Object { $null -ne $_ -and $_.PSObject.Properties['Tests'] })[0]
+    Send-MtMail -MaesterResults $assessmentResult -Recipient $MailRecipient -UserId $MailRecipient -ErrorAction Stop | Out-Null
+    $publication.Mail = 'UpstreamUnverified'
   }
-  else {
-    Get-NUnitFailureCount -Path $resultsXmlPath
+
+  # Only sanitized evidence is serialized here. Detailed results remain in the
+  # existing private report artifact (or the isolated approved-drift output).
+  $receipt = [ordered]@{
+    SchemaVersion = 1; Kind = 'MaesterAzureDevOpsAssessment'
+    BuildId = [string]$env:BUILD_BUILDID
+    StartedAt = $assessmentStartedAt.ToString('o'); CompletedAt = [datetimeoffset]::UtcNow.ToString('o')
+    Source = $evidenceSource
+    Runtime = [ordered]@{ PowerShell=$PSVersionTable.PSVersion.ToString(); DotNet=[Environment]::Version.ToString(); Edition=$PSVersionTable.PSEdition; OS=[Runtime.InteropServices.RuntimeInformation]::OSDescription; Architecture=[Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString(); Modules=$evidenceModules }
+    Permissions = $capabilityEvidence
+    Assessment = $assessmentEvidence
+    Publication = $publication
   }
+  $receipt | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $outputFolder 'assessment-evidence.json') -Encoding utf8 -ErrorAction Stop
+  $failureCount = $assessmentEvidence.Counts.FailedCount
   if ($failureCount -gt 0) {
     $failureMessage = "$failureCount Maester test(s) failed."
     if ($failOnTestFailuresBool) {

@@ -1,0 +1,369 @@
+{
+  "schemaVersion": "1.0",
+  "manifestVersion": "1.0.0",
+  "maesterVersion": "2.3.0",
+  "reviewedOn": "2026-10-19",
+  "resourceAppId": "00000003-0000-0000-c000-000000000000",
+  "profiles": {
+    "Minimal": [
+      "Directory.Read.All",
+      "DirectoryRecommendations.Read.All",
+      "IdentityRiskEvent.Read.All",
+      "Policy.Read.All",
+      "Policy.Read.ConditionalAccess",
+      "RoleManagement.Read.All",
+      "Reports.Read.All",
+      "UserAuthenticationMethod.Read.All"
+    ],
+    "Full": [
+      "AuditLog.Read.All",
+      "DeviceManagementConfiguration.Read.All",
+      "DeviceManagementManagedDevices.Read.All",
+      "DeviceManagementRBAC.Read.All",
+      "DeviceManagementServiceConfig.Read.All",
+      "Directory.Read.All",
+      "DirectoryRecommendations.Read.All",
+      "EntitlementManagement.Read.All",
+      "IdentityRiskEvent.Read.All",
+      "NetworkAccess.Read.All",
+      "OnPremDirectorySynchronization.Read.All",
+      "OrgSettings-AppsAndServices.Read.All",
+      "OrgSettings-Forms.Read.All",
+      "Policy.Read.All",
+      "Policy.Read.ConditionalAccess",
+      "Policy.Read.DeviceConfiguration",
+      "ReportSettings.Read.All",
+      "Reports.Read.All",
+      "RoleEligibilitySchedule.Read.Directory",
+      "RoleManagement.Read.All",
+      "RoleManagementAlert.Read.Directory",
+      "SecurityIdentitiesHealth.Read.All",
+      "SecurityIdentitiesSensors.Read.All",
+      "SharePointTenantSettings.Read.All",
+      "Sites.Read.All",
+      "ThreatHunting.Read.All",
+      "UserAuthenticationMethod.Read.All"
+    ],
+    "Extended": [
+      "DeviceManagementConfiguration.Read.All",
+      "DeviceManagementManagedDevices.Read.All",
+      "DeviceManagementRBAC.Read.All",
+      "DeviceManagementServiceConfig.Read.All",
+      "Directory.Read.All",
+      "DirectoryRecommendations.Read.All",
+      "IdentityRiskEvent.Read.All",
+      "Policy.Read.All",
+      "Policy.Read.ConditionalAccess",
+      "PrivilegedAccess.Read.AzureAD",
+      "ReportSettings.Read.All",
+      "Reports.Read.All",
+      "RoleEligibilitySchedule.Read.Directory",
+      "RoleManagement.Read.All",
+      "SecurityIdentitiesHealth.Read.All",
+      "SecurityIdentitiesSensors.Read.All",
+      "SharePointTenantSettings.Read.All",
+      "ThreatHunting.Read.All",
+      "UserAuthenticationMethod.Read.All"
+    ]
+  },
+  "optionalCapabilities": {
+    "MailSend": [
+      "Mail.Send"
+    ],
+    "ReportSettingsWrite": [
+      "ReportSettings.ReadWrite.All"
+    ]
+  },
+  "applicationRoles": {
+    "AuditLog.Read.All": {
+      "applicationRoleId": "b0afded3-3588-46d8-8b3d-9842eff778da",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#auditlogreadall"
+    },
+    "DeviceManagementConfiguration.Read.All": {
+      "applicationRoleId": "dc377aa6-52d8-4e23-b271-2a7ae04cedf3",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#devicemanagementconfigurationreadall"
+    },
+    "DeviceManagementManagedDevices.Read.All": {
+      "applicationRoleId": "2f51be20-0bb4-4fed-bf7b-db946066c75e",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#devicemanagementmanageddevicesreadall"
+    },
+    "DeviceManagementRBAC.Read.All": {
+      "applicationRoleId": "58ca0d9a-1575-47e1-a3cb-007ef2e4583b",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#devicemanagementrbacreadall"
+    },
+    "DeviceManagementServiceConfig.Read.All": {
+      "applicationRoleId": "06a5fe6d-c49d-46a7-b082-56b1b14103c7",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#devicemanagementserviceconfigreadall"
+    },
+    "Directory.Read.All": {
+      "applicationRoleId": "7ab1d382-f21e-4acd-a863-ba3e13f7da61",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#directoryreadall"
+    },
+    "DirectoryRecommendations.Read.All": {
+      "applicationRoleId": "ae73097b-cb2a-4447-b064-5d80f6093921",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#directoryrecommendationsreadall"
+    },
+    "EntitlementManagement.Read.All": {
+      "applicationRoleId": "c74fd47d-ed3c-45c3-9a9e-b8676de685d2",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#entitlementmanagementreadall"
+    },
+    "IdentityRiskEvent.Read.All": {
+      "applicationRoleId": "6e472fd1-ad78-48da-a0f0-97ab2c6b769e",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#identityriskeventreadall"
+    },
+    "Mail.Send": {
+      "applicationRoleId": "b633e1c5-b582-4048-a93e-9f11b44c7e96",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#mailsend"
+    },
+    "NetworkAccess.Read.All": {
+      "applicationRoleId": "e30060de-caa5-4331-99d3-6ac6c966a9a4",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#networkaccessreadall"
+    },
+    "OnPremDirectorySynchronization.Read.All": {
+      "applicationRoleId": "bb70e231-92dc-4729-aff5-697b3f04be95",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#onpremdirectorysynchronizationreadall"
+    },
+    "OrgSettings-AppsAndServices.Read.All": {
+      "applicationRoleId": "56c84fa9-ea1f-4a15-90f2-90ef41ece2c9",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#orgsettings-appsandservicesreadall"
+    },
+    "OrgSettings-Forms.Read.All": {
+      "applicationRoleId": "434d7c66-07c6-4b1f-ab21-417cf2cdaaca",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#orgsettings-formsreadall"
+    },
+    "Policy.Read.All": {
+      "applicationRoleId": "246dd0d5-5bd0-4def-940b-0421030a5b68",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#policyreadall"
+    },
+    "Policy.Read.ConditionalAccess": {
+      "applicationRoleId": "37730810-e9ba-4e46-b07e-8ca78d182097",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#policyreadconditionalaccess"
+    },
+    "Policy.Read.DeviceConfiguration": {
+      "applicationRoleId": "bdba4817-6ba1-4a7c-8a01-be9bc7c242dd",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#policyreaddeviceconfiguration"
+    },
+    "PrivilegedAccess.Read.AzureAD": {
+      "applicationRoleId": "4cdc2547-9148-4295-8d11-be0db1391d6b",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#privilegedaccessreadazuread"
+    },
+    "ReportSettings.Read.All": {
+      "applicationRoleId": "ee353f83-55ef-4b78-82da-555bfa2b4b95",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#reportsettingsreadall"
+    },
+    "ReportSettings.ReadWrite.All": {
+      "applicationRoleId": "2a60023f-3219-47ad-baa4-40e17cd02a1d",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#reportsettingsreadwriteall"
+    },
+    "Reports.Read.All": {
+      "applicationRoleId": "230c1aed-a721-4c5d-9cb4-a90514e508ef",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#reportsreadall"
+    },
+    "RoleEligibilitySchedule.Read.Directory": {
+      "applicationRoleId": "ff278e11-4a33-4d0c-83d2-d01dc58929a5",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#roleeligibilityschedulereaddirectory"
+    },
+    "RoleManagement.Read.All": {
+      "applicationRoleId": "c7fbd983-d9aa-4fa7-84b8-17382c103bc4",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#rolemanagementreadall"
+    },
+    "RoleManagementAlert.Read.Directory": {
+      "applicationRoleId": "ef31918f-2d50-4755-8943-b8638c0a077e",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#rolemanagementalertreaddirectory"
+    },
+    "SecurityIdentitiesHealth.Read.All": {
+      "applicationRoleId": "f8dcd971-5d83-4e1e-aa95-ef44611ad351",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#securityidentitieshealthreadall"
+    },
+    "SecurityIdentitiesSensors.Read.All": {
+      "applicationRoleId": "5f0ffea2-f474-4cf2-9834-61cda2bcea5c",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#securityidentitiessensorsreadall"
+    },
+    "SharePointTenantSettings.Read.All": {
+      "applicationRoleId": "83d4163d-a2d8-4d3b-9695-4ae3ca98f888",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#sharepointtenantsettingsreadall"
+    },
+    "Sites.Read.All": {
+      "applicationRoleId": "332a536c-c7ef-4017-ab91-336970924f0d",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#sitesreadall"
+    },
+    "ThreatHunting.Read.All": {
+      "applicationRoleId": "dd98c7f5-2d42-42d3-a0e4-633161547251",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#threathuntingreadall"
+    },
+    "UserAuthenticationMethod.Read.All": {
+      "applicationRoleId": "38d9df27-64da-44fd-b7c5-a6fbac20248f",
+      "permissionType": "Application",
+      "source": "https://learn.microsoft.com/en-us/graph/permissions-reference#userauthenticationmethodreadall"
+    }
+  },
+  "upstream": {
+    "releaseUrl": "https://github.com/maester365/maester/releases/tag/2.3.0",
+    "sourceCommit": "7413c42d3fcc724dfea94d2726e690ddd364d914",
+    "packageUrl": "https://www.powershellgallery.com/api/v2/package/Maester/2.3.0",
+    "packageSha256": "95F720822D04271F5E15F4665BC017111DC72E17B97E5D0525CB4EC2FF5BD0B0",
+    "scopeSourceUrl": "https://github.com/maester365/maester/blob/7413c42d3fcc724dfea94d2726e690ddd364d914/powershell/public/Get-MtGraphScope.ps1",
+    "scopeSourceSha256": "064dc3e37792c9fdd298ff91c9742e6151ffc2a63eb8393e28e6883fc9c38ccc",
+    "defaultReadScopes": [
+      "AuditLog.Read.All",
+      "DeviceManagementConfiguration.Read.All",
+      "DeviceManagementManagedDevices.Read.All",
+      "DeviceManagementRBAC.Read.All",
+      "DeviceManagementServiceConfig.Read.All",
+      "Directory.Read.All",
+      "DirectoryRecommendations.Read.All",
+      "EntitlementManagement.Read.All",
+      "IdentityRiskEvent.Read.All",
+      "NetworkAccess.Read.All",
+      "OnPremDirectorySynchronization.Read.All",
+      "OrgSettings-AppsAndServices.Read.All",
+      "OrgSettings-Forms.Read.All",
+      "Policy.Read.All",
+      "Policy.Read.ConditionalAccess",
+      "ReportSettings.Read.All",
+      "Reports.Read.All",
+      "RoleEligibilitySchedule.Read.Directory",
+      "RoleManagement.Read.All",
+      "RoleManagementAlert.Read.Directory",
+      "SecurityIdentitiesHealth.Read.All",
+      "SecurityIdentitiesSensors.Read.All",
+      "SharePointTenantSettings.Read.All",
+      "ThreatHunting.Read.All",
+      "UserAuthenticationMethod.Read.All"
+    ],
+    "bundledTests": {
+      "testFileCount": 519,
+      "allFileCount": 524,
+      "fileInventorySha256": "e09cec23f5a05f6d6063d757373fea612b7f612f075c736bbbf68291331b8123",
+      "inventoryFormat": "Sorted relative POSIX paths; each line is lowercase SHA-256 + two spaces + path + LF.",
+      "configVersion": "2026.10.06.1"
+    },
+    "permissionsReferenceUrl": "https://learn.microsoft.com/en-us/graph/permissions-reference",
+    "permissionsReferenceSha256": "4c86b08715ab23cccfd542d057019f7e9df9d57aed8afa38e2c88cc5c3f70447"
+  },
+  "reviewedSupplements": [
+    {
+      "role": "Policy.Read.DeviceConfiguration",
+      "testIds": [
+        "MT.1061",
+        "MT.1070",
+        "MT.1090",
+        "MT.1091"
+      ],
+      "endpoint": "GET beta/policies/deviceRegistrationPolicy",
+      "reason": "Policy.Read.All is documented for delegated access but not as an application alternative for this endpoint.",
+      "source": "https://learn.microsoft.com/en-us/graph/api/deviceregistrationpolicy-get?view=graph-rest-beta"
+    },
+    {
+      "role": "Sites.Read.All",
+      "testIds": [
+        "MT.1106"
+      ],
+      "endpoint": "GET v1.0/sites/{hostname}:{path}",
+      "reason": "Entitlement-management resource validation dereferences SharePoint sites. SharePointTenantSettings.Read.All does not authorize this lookup.",
+      "consequence": "Permits reading documents and list items across all site collections, beyond this test's site-existence check.",
+      "source": "https://learn.microsoft.com/en-us/graph/api/site-get?view=graph-rest-1.0"
+    }
+  ],
+  "capabilityConsequences": {
+    "MailSend": "Sends mail as a user through Microsoft Graph. Separate delivery configuration and explicit consent are required; no assessment read profile includes it.",
+    "ReportSettingsWrite": "Upstream Test-MtExoMoeraMailActivity can temporarily disable tenant-wide report privacy and attempts to restore it. Restoration can fail. Read-only assessment does not request this capability."
+  },
+  "coverage": {
+    "fullMeaning": "Reviewed Graph application read baseline for the stable, non-preview Maester 2.3.0 assessment. Static review is not proof that every workload or test can run.",
+    "minimalMeaning": "Original eight application reads. Run the same bundled suite and retain errors, skipped tests, not-run tests and unverified coverage; do not hide permission failures.",
+    "legacyExtendedMeaning": "Exact legacy 19-role inventory for explicit compatibility. It is not an alias for Full; existing grants are not revoked when choosing a smaller profile.",
+    "defaultExcludedTags": [
+      "Preview",
+      "LongRunning"
+    ],
+    "separatePreviewReadRoles": [
+      "AgentIdentity.Read.All",
+      "AgentIdentityBlueprint.Read.All",
+      "AgentIdentityBlueprintPrincipal.Read.All",
+      "Application.Read.All"
+    ],
+    "previewNote": "These four preview roles are documented, not included in grantable profiles or optionalCapabilities. Preview execution requires a separately reviewed change.",
+    "hostBoundaries": [
+      "Active Directory requires explicit connected host support; upstream excludes AD without it.",
+      "Ambient drift is excluded before discovery; only the existing separately approved Container adapter enables its locked suite.",
+      "Graph grants do not provide Exchange Online, Security and Compliance, Teams PowerShell, Azure RBAC, SharePoint/PnP, Dataverse, GitHub or Azure DevOps authorization."
+    ],
+    "unverifiedDependencies": [
+      {
+        "test": "Test-MtCisaNotifyHighRisk",
+        "endpoint": "GET beta/identityProtection/settings/notifications",
+        "reason": "No official endpoint-specific application-permission contract was located during the review; preserve the gap rather than inventing a grant."
+      },
+      {
+        "test": "Test-MtOnPremisesSynchronization.Tests.ps1",
+        "commands": [
+          "Test-MtEntraIDConnectSyncSoftHardMatching",
+          "Test-MtEntraIDConnectSyncOnPremisesObjectIdentifierUpdatesBlocked"
+        ],
+        "endpoint": "GET v1.0/directory/onPremisesSynchronization and GET beta/directory/onPremisesSynchronization",
+        "reason": "The application role OnPremDirectorySynchronization.Read.All exists and remains in the upstream baseline, but both endpoint contracts document application access as not supported. Role existence does not establish app-only support for these stable checks; retain the documentation/API mismatch as an unverified coverage gap.",
+        "sources": [
+          "https://learn.microsoft.com/en-us/graph/api/onpremisesdirectorysynchronization-get?view=graph-rest-1.0",
+          "https://learn.microsoft.com/en-us/graph/api/onpremisesdirectorysynchronization-get?view=graph-rest-beta"
+        ]
+      },
+      {
+        "test": "Test-MtExoMoeraMailActivity",
+        "reason": "Concealed usage-report identities may prevent reliable MOERA classification without the separate tenant-setting write capability."
+      }
+    ],
+    "limitations": [
+      "Licensing, data availability, sovereign-cloud support and beta API behavior can still limit coverage.",
+      "Readback of a grant does not prove a managed-identity token has refreshed or the runtime can use it.",
+      "A healthy job/result receipt does not certify complete workload coverage or compliance."
+    ],
+    "nonAssessmentScope": "Setup delegated scopes, application registration, app-role administration, Mail.Send, report privacy writes and Teams message sending are not assessment read permissions."
+  },
+  "separateWorkloadRequirements": {
+    "ExchangeOnline": {
+      "resourceAppId": "00000002-0000-0ff1-ce00-000000000000",
+      "applicationRoles": [
+        "Exchange.ManageAsApp"
+      ],
+      "serviceRole": "View-Only Configuration through the separately configured Exchange service principal; further checks can need additional reviewed service roles."
+    },
+    "Teams": {
+      "directoryRole": "Teams Reader",
+      "note": "Separate Teams PowerShell connection and authorization. ChannelMessage.Send is delegated-only output and is not an assessment application role."
+    },
+    "Azure": {
+      "role": "Reader",
+      "scope": "Only explicitly selected and approved management groups/subscriptions/resource scopes; separate from Graph."
+    }
+  }
+}

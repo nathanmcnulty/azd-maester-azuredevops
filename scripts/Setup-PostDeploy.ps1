@@ -20,8 +20,8 @@ param(
   [string]$SecurityGroupDisplayName,
 
   [Parameter(Mandatory = $false)]
-  [ValidateSet('Minimal', 'Extended')]
-  [string]$PermissionProfile = 'Extended',
+  [ValidateSet('Minimal', 'Full', 'Extended')]
+  [string]$PermissionProfile = 'Full',
 
   [Parameter(Mandatory = $false)]
   [switch]$IncludeExchange,
@@ -69,7 +69,18 @@ param(
   [bool]$ValidatePipelineRun,
 
   [Parameter(Mandatory = $false)]
-  [bool]$FailOnTestFailures
+  [bool]$FailOnTestFailures,
+  [switch]$IncludeMailSend,
+  [switch]$IncludeReportSettingsWrite,
+  [switch]$Bootstrap,
+  [switch]$IncludeRuntimeApplicationBootstrap,
+  [switch]$ApplyBootstrap,
+  [string]$ApprovedBootstrapPlanHash,
+  [switch]$Apply,
+  [string]$ApprovedPlanHash,
+  [switch]$InteractiveConsent,
+  [switch]$AllowInteractiveGraphLogin,
+  [switch]$AllowGraphContextReplacement
 )
 
 Set-StrictMode -Version Latest
@@ -180,7 +191,8 @@ function Invoke-AdoRestMethod {
   }
 
   $responseStatus = 0
-  $response = Invoke-RestMethod @invokeParams -SkipHttpErrorCheck -StatusCodeVariable responseStatus
+  $responseHeaders = $null
+  $response = Invoke-RestMethod @invokeParams -SkipHttpErrorCheck -StatusCodeVariable responseStatus -ResponseHeadersVariable responseHeaders
   $content = if ($null -eq $response) {
     ''
   }
@@ -194,6 +206,7 @@ function Invoke-AdoRestMethod {
   return [pscustomobject]@{
     StatusCode = [int]$responseStatus
     Content    = $content
+    ContinuationToken = $(if ($responseHeaders) { $responseHeaders['x-ms-continuationtoken'] } else { $null })
   }
 }
 
@@ -234,171 +247,6 @@ function Get-OptionalPropertyValue {
 
   return $null
 }
-function Test-AdoServiceConnectionAuthorizedForPipelines {
-  param(
-    [Parameter(Mandatory = $true)]
-    [string]$Organization,
-
-    [Parameter(Mandatory = $true)]
-    [string]$Project,
-
-    [Parameter(Mandatory = $true)]
-    [string]$ServiceConnectionId,
-
-    [Parameter(Mandatory = $true)]
-    [string]$ServiceConnectionName,
-
-    [Parameter(Mandatory = $false)]
-    [string]$TenantId
-  )
-
-  $projectEncoded = [System.Uri]::EscapeDataString($Project)
-  $permissionsUri = "https://dev.azure.com/$Organization/$projectEncoded/_apis/pipelines/pipelinePermissions/endpoint/$($ServiceConnectionId)?api-version=7.1-preview.1"
-  $existingResponse = Invoke-AdoRestMethod -Method GET -Uri $permissionsUri -TenantId $TenantId
-  if (-not [string]::IsNullOrWhiteSpace($existingResponse.Content)) {
-    $existingPayload = $existingResponse.Content | ConvertFrom-Json
-    if ($existingPayload -and $existingPayload.PSObject.Properties['allPipelines']) {
-      $existingAuthorized = ConvertTo-BoolOrDefault -Value ([string]$existingPayload.allPipelines.authorized) -Default $false
-      if ($existingAuthorized) {
-        return $true
-      }
-    }
-  }
-
-  Write-Host "Granting pipeline access to service connection '$ServiceConnectionName'..."
-  $patchBody = @{
-    allPipelines = @{
-      authorized = $true
-    }
-    pipelines = @()
-  } | ConvertTo-Json -Depth 10 -Compress
-
-  Invoke-AdoRestMethod -Method PATCH -Uri $permissionsUri -TenantId $TenantId -Payload $patchBody | Out-Null
-
-  $verifiedResponse = Invoke-AdoRestMethod -Method GET -Uri $permissionsUri -TenantId $TenantId
-  $verifiedAuthorized = $false
-  if (-not [string]::IsNullOrWhiteSpace($verifiedResponse.Content)) {
-    $verifiedPayload = $verifiedResponse.Content | ConvertFrom-Json
-    if ($verifiedPayload -and $verifiedPayload.PSObject.Properties['allPipelines']) {
-      $verifiedAuthorized = ConvertTo-BoolOrDefault -Value ([string]$verifiedPayload.allPipelines.authorized) -Default $false
-    }
-  }
-
-  if (-not $verifiedAuthorized) {
-    throw "Service connection '$ServiceConnectionName' was not authorized for pipelines. Grant permission in Azure DevOps and rerun setup."
-  }
-
-  return $true
-}
-
-function Set-AdoRepositoryAuthorizedForPipelines {
-  param(
-    [Parameter(Mandatory = $true)]
-    [string]$Organization,
-
-    [Parameter(Mandatory = $true)]
-    [string]$Project,
-
-    [Parameter(Mandatory = $true)]
-    [string]$ProjectId,
-
-    [Parameter(Mandatory = $true)]
-    [string]$RepositoryId,
-
-    [Parameter(Mandatory = $true)]
-    [string]$RepositoryName,
-
-    [Parameter(Mandatory = $false)]
-    [string]$TenantId
-  )
-
-  $projectEncoded = [System.Uri]::EscapeDataString($Project)
-  $permissionsUri = "https://dev.azure.com/$Organization/$projectEncoded/_apis/pipelines/pipelinePermissions/repository/$($ProjectId).$($RepositoryId)?api-version=7.1-preview.1"
-  $existingResponse = Invoke-AdoRestMethod -Method GET -Uri $permissionsUri -TenantId $TenantId
-  if (-not [string]::IsNullOrWhiteSpace($existingResponse.Content)) {
-    $existingPayload = $existingResponse.Content | ConvertFrom-Json
-    if ($existingPayload -and $existingPayload.PSObject.Properties['allPipelines']) {
-      $existingAuthorized = ConvertTo-BoolOrDefault -Value ([string]$existingPayload.allPipelines.authorized) -Default $false
-      if ($existingAuthorized) {
-        return
-      }
-    }
-  }
-
-  Write-Host "Granting pipeline access to repository '$RepositoryName'..."
-  $patchBody = @{
-    allPipelines = @{
-      authorized = $true
-    }
-    pipelines   = @()
-  } | ConvertTo-Json -Depth 10 -Compress
-
-  Invoke-AdoRestMethod -Method PATCH -Uri $permissionsUri -TenantId $TenantId -Payload $patchBody | Out-Null
-}
-
-function Test-AzureRoleAssignment {
-  param(
-    [Parameter(Mandatory = $true)]
-    [string]$Scope,
-
-    [Parameter(Mandatory = $true)]
-    [string]$PrincipalObjectId,
-
-    [Parameter(Mandatory = $true)]
-    [string]$RoleDefinitionGuid,
-
-    [Parameter(Mandatory = $true)]
-    [string]$SubscriptionId,
-
-    [Parameter(Mandatory = $false)]
-    [ValidateSet('ServicePrincipal', 'User', 'Group')]
-    [string]$PrincipalType = 'ServicePrincipal'
-  )
-
-  $roleDefinitionId = if ($Scope -like '/providers/Microsoft.Management/managementGroups/*') {
-    "/providers/Microsoft.Authorization/roleDefinitions/$RoleDefinitionGuid"
-  }
-  else {
-    "/subscriptions/$SubscriptionId/providers/Microsoft.Authorization/roleDefinitions/$RoleDefinitionGuid"
-  }
-
-  $existingPath = "$Scope/providers/Microsoft.Authorization/roleAssignments?`$filter=atScope()&api-version=2022-04-01"
-  $existingResponse = Invoke-AzRestMethod -Method GET -Path $existingPath
-  if ($existingResponse.StatusCode -eq 200) {
-    $existingPayload = $existingResponse.Content | ConvertFrom-Json
-    $existingMatch = @($existingPayload.value | Where-Object {
-        $_.properties.principalId -eq $PrincipalObjectId -and $_.properties.roleDefinitionId -eq $roleDefinitionId
-      }) | Select-Object -First 1
-    if ($existingMatch) {
-      return $null
-    }
-  }
-
-  $assignmentName = [guid]::NewGuid().ToString()
-  $createPath = "$Scope/providers/Microsoft.Authorization/roleAssignments/${assignmentName}?api-version=2022-04-01"
-  $body = @{
-    properties = @{
-      roleDefinitionId = $roleDefinitionId
-      principalId      = $PrincipalObjectId
-      principalType    = $PrincipalType
-    }
-  } | ConvertTo-Json -Depth 10
-
-  $createResponse = Invoke-AzRestMethod -Method PUT -Path $createPath -Payload $body
-  if ($createResponse.StatusCode -in @(200, 201)) {
-    $payload = $createResponse.Content | ConvertFrom-Json
-    if ($payload -and $payload.id) {
-      return $payload.id
-    }
-  }
-
-  if ($createResponse.StatusCode -eq 409) {
-    return $null
-  }
-
-  throw "Role assignment failed for role '$RoleDefinitionGuid' at scope '$Scope'. HTTP $($createResponse.StatusCode): $($createResponse.Content)"
-}
-
 function Push-RepositoryFiles {
   param(
     [Parameter(Mandatory = $true)]
@@ -411,7 +259,9 @@ function Push-RepositoryFiles {
     [string]$BearerToken,
 
     [Parameter(Mandatory = $true)]
-    [object[]]$Files
+    [object[]]$Files,
+
+    [string]$ExpectedBranchObjectId
   )
 
   $tempPath = Join-Path -Path ([IO.Path]::GetTempPath()) -ChildPath ("maester-ado-{0}" -f ([guid]::NewGuid().ToString('N')))
@@ -425,9 +275,18 @@ function Push-RepositoryFiles {
       throw "git clone failed for '$RepositoryUrl'."
     }
 
-    & git -C $tempPath checkout -B $Branch | Out-Null
+    if ($ExpectedBranchObjectId) {
+      & git -C $tempPath checkout -B $Branch "origin/$Branch" | Out-Null
+    } else {
+      & git -C $tempPath checkout -B $Branch | Out-Null
+    }
     if ($LASTEXITCODE -ne 0) {
       throw "git checkout -B $Branch failed."
+    }
+
+    if ($ExpectedBranchObjectId) {
+      $currentHead = & git -C $tempPath rev-parse HEAD
+      if ($LASTEXITCODE -ne 0 -or [string]$currentHead -cne $ExpectedBranchObjectId) { throw 'Repository branch changed after approval; generate a fresh setup plan before publishing files.' }
     }
 
     foreach ($file in $Files) {
@@ -437,12 +296,22 @@ function Push-RepositoryFiles {
         New-Item -Path $targetDir -ItemType Directory -Force | Out-Null
       }
 
-      Set-Content -Path $targetPath -Value $file.Content -Encoding utf8
+      Set-Content -LiteralPath $targetPath -Value $file.Content -Encoding utf8 -NoNewline
     }
 
     & git -C $tempPath add --all | Out-Null
     if ($LASTEXITCODE -ne 0) {
       throw 'git add failed.'
+    }
+
+    # Git filters and line-ending normalization must not change reviewed bytes.
+    # Compare raw file objects with staged blobs without changing Git settings.
+    foreach ($file in $Files) {
+      $targetPath = Join-Path $tempPath $file.Path
+      $rawBlob = [string](& git -C $tempPath hash-object --no-filters -- $targetPath)
+      if ($LASTEXITCODE -ne 0 -or $rawBlob -cnotmatch '^[a-f0-9]{40}$') { throw 'Could not verify the raw publication blob.' }
+      $stagedBlob = [string](& git -C $tempPath rev-parse ":$($file.Path)")
+      if ($LASTEXITCODE -ne 0 -or $stagedBlob -cne $rawBlob) { throw "Git changed reviewed publication bytes for '$($file.Path)'; review repository filter/line-ending settings before retrying." }
     }
 
     $statusOutput = & git -C $tempPath status --porcelain
@@ -456,6 +325,7 @@ function Push-RepositoryFiles {
         Changed    = $false
         Branch     = $Branch
         Repository = $RepositoryUrl
+        CommitId   = [string](& git -C $tempPath rev-parse HEAD)
       }
     }
 
@@ -474,6 +344,7 @@ function Push-RepositoryFiles {
       Changed    = $true
       Branch     = $Branch
       Repository = $RepositoryUrl
+      CommitId   = [string](& git -C $tempPath rev-parse HEAD)
     }
   }
   finally {
@@ -509,59 +380,11 @@ function Remove-DirectoryQuiet {
   }
 }
 
-function Get-EmptyAdoRepositoryCandidate {
-  param(
-    [Parameter(Mandatory = $true)]
-    [string]$Organization,
-
-    [Parameter(Mandatory = $true)]
-    [string]$Project,
-
-    [Parameter(Mandatory = $false)]
-    [string]$RequestedRepositoryName
-  )
-
-  $projectEncoded = [System.Uri]::EscapeDataString($Project)
-  $repositoriesUri = "https://dev.azure.com/$Organization/$projectEncoded/_apis/git/repositories?api-version=7.1-preview.1"
-  $repositoriesResponse = Invoke-ADOPSRestMethod -Method GET -Uri $repositoriesUri
-  $repositories = @($repositoriesResponse.value)
-  if ($repositories.Count -eq 0) {
-    return $null
-  }
-
-  $priorityNames = @()
-  if (-not [string]::IsNullOrWhiteSpace($Project)) {
-    $priorityNames += $Project
-  }
-  if (-not [string]::IsNullOrWhiteSpace($RequestedRepositoryName) -and $RequestedRepositoryName -ine $Project) {
-    $priorityNames += $RequestedRepositoryName
-  }
-
-  foreach ($priorityName in $priorityNames) {
-    $preferredEmptyRepository = @($repositories | Where-Object {
-        ([string](Get-OptionalPropertyValue -InputObject $_ -PropertyNames @('name')) -ieq $priorityName) -and
-        [string]::IsNullOrWhiteSpace([string](Get-OptionalPropertyValue -InputObject $_ -PropertyNames @('defaultBranch')))
-      }) | Select-Object -First 1
-    if ($preferredEmptyRepository) {
-      return $preferredEmptyRepository
-    }
-  }
-
-  return @($repositories | Where-Object {
-      [string]::IsNullOrWhiteSpace([string](Get-OptionalPropertyValue -InputObject $_ -PropertyNames @('defaultBranch')))
-    } | Select-Object -First 1)
-}
-
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Set-Location $projectRoot
 
 Import-Module (Join-Path $PSScriptRoot 'vendor\Azd.MaesterHooks\Maester-SetupHelpers.psm1') -Force
 Import-Module Az.Accounts -Force
-
-$adopsInstallMessage = "PowerShell module 'ADOPS' is required to configure Azure DevOps. Install now to continue postprovision setup."
-if (-not (Test-ModuleAvailable -ModuleName 'ADOPS' -InstallMessage $adopsInstallMessage)) {
-  throw "PowerShell module 'ADOPS' is required for postprovision setup. Install it with: Install-Module ADOPS -Scope CurrentUser -Force -AllowClobber"
-}
 
 $envLines = @{}
 try {
@@ -776,780 +599,104 @@ $targets = Resolve-MaesterDeploymentTargets -EnvironmentValues $deploymentValues
 $storageResource = $targets.StorageAccount
 $webAppResource = $targets.WebApp
 
-Write-Host 'Connecting to Azure DevOps with ADOPS and OAuth token...'
-$devOpsToken = Get-AzureDevOpsAccessToken -TenantId $TenantId
-Connect-ADOPS -Organization $AdoOrganization -OAuthToken $devOpsToken -SkipVerification | Out-Null
-
-$projectInfo = Get-ADOPSProject -Name $AdoProject -Organization $AdoOrganization
-if (-not $projectInfo) {
-  throw "Azure DevOps project '$AdoProject' was not found in organization '$AdoOrganization'."
+# Authentication for Graph setup belongs exclusively to the dedicated public
+# client. Selected runtime capabilities are not approval of any access changes.
+Import-Module (Join-Path $PSScriptRoot 'vendor/Azd.MaesterHooks/Maester-ConsentPlan.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'Maester-AdoBootstrap.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'Maester-SetupConsent.psm1') -Force
+$includeWebApp = $null -ne $webAppResource
+# A manual retry in a fresh shell reads configuration from the already-verified
+# named azd environment, without persisting or broadening any setup authority.
+foreach ($name in @('MAESTER_SETUP_CLIENT_ID','MAESTER_SETUP_ACCOUNT','MAESTER_SETUP_INCLUDE_RUNTIME_BOOTSTRAP','MAIL_RECIPIENT')) {
+  if (-not [Environment]::GetEnvironmentVariable($name) -and $deploymentValues[$name]) {
+    [Environment]::SetEnvironmentVariable($name, [string]$deploymentValues[$name])
+  }
 }
-
-$requestedRepositoryName = $AdoRepositoryName
-$repositoryCreatedByEnvironment = ConvertTo-BoolOrDefault `
-  -Value (Get-EnvValue -Lines $envLines -Name 'AZDO_REPOSITORY_CREATED') `
-  -Default $false
-$repository = $null
-try {
-  $repository = Get-ADOPSRepository -Project $AdoProject -Repository $AdoRepositoryName -Organization $AdoOrganization -ErrorAction Stop
+$bootstrapSelection = $env:MAESTER_SETUP_INCLUDE_RUNTIME_BOOTSTRAP
+if ($bootstrapSelection -and $bootstrapSelection -notin @('true','false')) { throw 'MAESTER_SETUP_INCLUDE_RUNTIME_BOOTSTRAP must be true or false.' }
+foreach ($capability in @('IncludeMailSend', 'IncludeReportSettingsWrite')) {
+  $key = if ($capability -eq 'IncludeMailSend') { 'INCLUDE_MAIL_SEND' } else { 'INCLUDE_REPORT_SETTINGS_WRITE' }
+  if (-not $PSBoundParameters.ContainsKey($capability)) {
+    $value = if ([Environment]::GetEnvironmentVariable($key)) { [Environment]::GetEnvironmentVariable($key) } else { Get-EnvValue $envLines $key }
+    if ($null -ne $value -and $value -notin @('true', 'false')) { throw "$key must be true or false." }
+    Set-Variable -Name $capability -Value ($value -eq 'true')
+  }
 }
-catch {
-  $repository = $null
+if ($PermissionProfile -notin @('Minimal', 'Full', 'Extended')) { throw 'Unknown permission profile. Choose Minimal, Full, or legacy Extended.' }
+if ($ApplyBootstrap) { $Bootstrap = $true }
+if ($Bootstrap -and ($Apply -or $ApprovedPlanHash)) { throw 'Bootstrap and setup access approval are separate stages.' }
+if ($AllowGraphContextReplacement -and -not $AllowInteractiveGraphLogin) { throw 'Context replacement requires explicit interactive login and replacement approval.' }
+if ($InteractiveConsent -and -not $AllowInteractiveGraphLogin) {
+  if ($env:CI -eq 'true' -or $env:AZD_NON_INTERACTIVE -eq 'true' -or [Console]::IsInputRedirected) { throw 'Interactive setup is unavailable; use an existing exact session and explicit approved plan hash.' }
+  $answer = Read-Host "Allow normal browser sign-in if needed for setup account '$env:MAESTER_SETUP_ACCOUNT' and tenant '$TenantId'? [y/N]"
+  $AllowInteractiveGraphLogin = $answer -match '^(?i:y|yes)$'
 }
-
-if (-not $repository) {
-  if (-not $CreateRepositoryIfMissing) {
-    throw "Azure DevOps repository '$AdoRepositoryName' was not found and CreateRepositoryIfMissing=false."
-  }
-
-  $emptyRepositoryCandidate = $null
-  try {
-    $emptyRepositoryCandidate = Get-EmptyAdoRepositoryCandidate -Organization $AdoOrganization -Project $AdoProject -RequestedRepositoryName $requestedRepositoryName
-  }
-  catch {
-    Write-Warning "Could not evaluate existing repositories before creation. Error: $($_.Exception.Message)"
-  }
-
-  if ($emptyRepositoryCandidate) {
-    $repository = $emptyRepositoryCandidate
-    $candidateName = [string](Get-OptionalPropertyValue -InputObject $repository -PropertyNames @('name'))
-    if (-not [string]::IsNullOrWhiteSpace($candidateName)) {
-      $AdoRepositoryName = $candidateName
-    }
-    Write-Host "Using existing empty Azure DevOps repository '$AdoRepositoryName' instead of creating '$requestedRepositoryName'."
-  }
-  else {
-    Write-Host "Creating Azure DevOps repository '$AdoRepositoryName'..."
-    $repository = New-ADOPSRepository -Name $AdoRepositoryName -Project $AdoProject -Organization $AdoOrganization
+if ($Bootstrap -or $env:MAESTER_SETUP_INCLUDE_RUNTIME_BOOTSTRAP -eq 'true') { $IncludeRuntimeApplicationBootstrap = $true }
+$setupScopes = @(Get-MaesterSetupScopes -IncludeTeams:$IncludeTeams -IncludeWebApp:$includeWebApp)
+if ($IncludeRuntimeApplicationBootstrap) { $setupScopes += 'Application.ReadWrite.All' }
+$setupScopes = @($setupScopes | Sort-Object -Unique)
+Assert-GraphAccess -TenantId $TenantId -ClientId $env:MAESTER_SETUP_CLIENT_ID -ExpectedAccount $env:MAESTER_SETUP_ACCOUNT `
+  -Scopes $setupScopes -AllowInteractive:$AllowInteractiveGraphLogin -AllowContextReplacement:$AllowGraphContextReplacement
+$adoParameters = @{
+  TenantId = $TenantId; SubscriptionId = $SubscriptionId; ResourceGroupName = $ResourceGroupName; EnvironmentName = $EnvironmentName
+  Organization = $AdoOrganization; Project = $AdoProject; RepositoryName = $AdoRepositoryName; ServiceConnectionName = $AdoServiceConnectionName
+  SubscriptionName = $subscriptionName; SetupScopes = $setupScopes; CreateRepositoryIfMissing = $CreateRepositoryIfMissing
+}
+foreach ($binding in @(
+  @('ExpectedServiceConnectionId', 'AZDO_SERVICE_CONNECTION_ID'), @('ExpectedApplicationId', 'AZDO_WORKLOAD_APP_ID'),
+  @('ExpectedApplicationObjectId', 'AZDO_WORKLOAD_APP_OBJECT_ID'), @('ExpectedPrincipalObjectId', 'AZDO_WORKLOAD_SERVICE_PRINCIPAL_OBJECT_ID')
+)) {
+  $value = if ([Environment]::GetEnvironmentVariable($binding[1])) { [Environment]::GetEnvironmentVariable($binding[1]) } else { Get-EnvValue $envLines $binding[1] }
+  if ($value) { $adoParameters[$binding[0]] = $value }
+}
+if ($Bootstrap) {
+  $bootstrapPlan = Get-MaesterAdoBootstrapPlan -Parameters $adoParameters
+  Write-Host ($bootstrapPlan | ConvertTo-Json -Depth 100)
+  if ($InteractiveConsent) { $ApprovedBootstrapPlanHash = Confirm-MaesterConsentPlan -Plan $bootstrapPlan; $ApplyBootstrap = $true }
+  if (-not $ApplyBootstrap) { Write-Host 'Bootstrap plan only. Review the exact operations and use -ApplyBootstrap -ApprovedBootstrapPlanHash.'; return $bootstrapPlan }
+  $bootstrapResult = Invoke-MaesterAdoBootstrapPlan -Parameters $adoParameters -ApprovedPlanHash $ApprovedBootstrapPlanHash
+  if (@($bootstrapResult.AppliedPlan.details.operations | Where-Object kind -eq 'Repository').Count) {
     $repositoryCreatedByEnvironment = $true
+    Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_REPOSITORY_CREATED' -Value 'true'
   }
+  if (@($bootstrapResult.NextPlan.missing).Count -eq 0) {
+    $snapshot = $bootstrapResult.Snapshot
+    foreach ($entry in @(
+      @('AZDO_SERVICE_CONNECTION_ID', $snapshot.endpoint.id), @('AZDO_WORKLOAD_APP_ID', $snapshot.application.appId),
+      @('AZDO_WORKLOAD_APP_OBJECT_ID', $snapshot.application.id), @('AZDO_WORKLOAD_SERVICE_PRINCIPAL_OBJECT_ID', $snapshot.principal.id),
+      @('AZDO_REPOSITORY_ID', $snapshot.repository.id)
+    )) { Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name $entry[0] -Value $entry[1] }
+    Write-Host 'Runtime bootstrap verified. Stop here; generate and approve a separate fresh setup access plan.'
+  } else {
+    Write-Host 'This bootstrap stage completed. Newly resolved identities require a fresh -Bootstrap plan and exact approval before further operations.'
+  }
+  return $bootstrapResult
+}
+$adoIdentity = Get-MaesterAdoIdentity @adoParameters
+$servicePrincipal = $adoIdentity.principal
+$aadApplication = $adoIdentity.snapshot.application
+$repository = $adoIdentity.snapshot.repository
+$repositoryId = [string]$repository.id
+$repositoryUrl = [string]$repository.remoteUrl
+$serviceConnectionId = [string]$adoIdentity.snapshot.endpoint.id
+$workloadIdentityDisplayName = [string]$aadApplication.displayName
+$repositoryCreatedByEnvironment = ConvertTo-BoolOrDefault -Value (Get-EnvValue $envLines 'AZDO_REPOSITORY_CREATED') -Default $false
+$securityGroupSource = if ($SecurityGroupObjectId) { 'explicit object ID' } else { 'explicit display name' }
+$armHeaders = @{ Authorization = "Bearer $managementToken" }
+if ([string]::IsNullOrWhiteSpace($managementToken)) {
+  $managementToken = ConvertTo-PlainTextToken (Get-AzAccessToken -ResourceUrl 'https://management.azure.com/' -TenantId $TenantId).Token
+  if ([string]::IsNullOrWhiteSpace($managementToken)) { throw 'A target-bound ARM token is required for complete access planning.' }
+  $armHeaders.Authorization = "Bearer $managementToken"
+}
+if ($IncludeExchange) {
+  if (-not (Get-Module -ListAvailable -Name ExchangeOnlineManagement)) { throw 'Install the reviewed ExchangeOnlineManagement module before planning Exchange access.' }
+  $orgResponse = Invoke-GraphRestRequest -Method GET -Uri 'https://graph.microsoft.com/v1.0/organization?$select=verifiedDomains'
+  $domains = @($orgResponse.value | ForEach-Object { $_.verifiedDomains } | Where-Object { $_.isInitial -eq $true })
+  if ($domains.Count -ne 1) { throw 'Exactly one initial tenant domain is required for Exchange access planning.' }
+  $exoOrganization = $domains[0].name
+  Connect-ExchangeOnlineSilent -Organization $exoOrganization -TenantId $TenantId
 }
 
-$repositoryId = [string](Get-OptionalPropertyValue -InputObject $repository -PropertyNames @('id'))
-$repositoryRemoteUrl = [string](Get-OptionalPropertyValue -InputObject $repository -PropertyNames @('remoteUrl'))
-$repositoryWebUrl = [string](Get-OptionalPropertyValue -InputObject $repository -PropertyNames @('webUrl'))
-$repositoryUrl = if (-not [string]::IsNullOrWhiteSpace($repositoryRemoteUrl)) { $repositoryRemoteUrl } else { $repositoryWebUrl }
-if ([string]::IsNullOrWhiteSpace($repositoryId)) {
-  throw "Could not determine repository id for '$AdoRepositoryName'."
-}
-if ([string]::IsNullOrWhiteSpace($repositoryUrl)) {
-  throw "Could not determine clone URL for repository '$AdoRepositoryName'."
-}
-
-$projectId = [string](Get-OptionalPropertyValue -InputObject $projectInfo -PropertyNames @('id'))
-if (-not [string]::IsNullOrWhiteSpace($projectId)) {
-  Set-AdoRepositoryAuthorizedForPipelines `
-    -Organization $AdoOrganization `
-    -Project $AdoProject `
-    -ProjectId $projectId `
-    -RepositoryId $repositoryId `
-    -RepositoryName $AdoRepositoryName `
-    -TenantId $TenantId
-}
-
-$serviceConnection = $null
-try {
-  $serviceConnection = Get-ADOPSServiceConnection -Project $AdoProject -Name $AdoServiceConnectionName -Organization $AdoOrganization -IncludeFailed -ErrorAction Stop
-}
-catch {
-  $serviceConnection = $null
-}
-
-$serviceConnectionScope = "/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroupName"
-if (-not $serviceConnection) {
-  Write-Host "Creating Azure DevOps service connection '$AdoServiceConnectionName' using workload identity federation..."
-  $serviceConnection = New-ADOPSServiceConnection `
-    -Organization $AdoOrganization `
-    -Project $AdoProject `
-    -ConnectionName $AdoServiceConnectionName `
-    -TenantId $TenantId `
-    -SubscriptionName $subscriptionName `
-    -SubscriptionId $SubscriptionId `
-    -WorkloadIdentityFederation `
-    -CreationMode Manual `
-    -AzureScope $serviceConnectionScope `
-    -Description "Maester federated identity service connection for environment '$EnvironmentName'"
-}
-
-$serviceConnectionId = [string](Get-OptionalPropertyValue -InputObject $serviceConnection -PropertyNames @('id'))
-if ([string]::IsNullOrWhiteSpace($serviceConnectionId)) {
-  throw "Could not determine service connection id for '$AdoServiceConnectionName'."
-}
-
-$serviceConnectionAuthorization = Get-OptionalPropertyValue -InputObject $serviceConnection -PropertyNames @('authorization')
-$serviceConnectionParameters = Get-OptionalPropertyValue -InputObject $serviceConnectionAuthorization -PropertyNames @('parameters')
-$workloadIssuer = [string](Get-OptionalPropertyValue -InputObject $serviceConnectionParameters -PropertyNames @('workloadIdentityFederationIssuer'))
-$workloadSubject = [string](Get-OptionalPropertyValue -InputObject $serviceConnectionParameters -PropertyNames @('workloadIdentityFederationSubject'))
-if ([string]::IsNullOrWhiteSpace($workloadIssuer) -or [string]::IsNullOrWhiteSpace($workloadSubject)) {
-  $parameterKeys = @()
-  if ($serviceConnectionParameters) {
-    $parameterKeys = @($serviceConnectionParameters.PSObject.Properties.Name)
-  }
-  $availableKeys = if ($parameterKeys.Count -gt 0) { $parameterKeys -join ', ' } else { '<none>' }
-  throw "Service connection '$AdoServiceConnectionName' did not return workload identity issuer/subject values. Available authorization.parameters keys: $availableKeys"
-}
-
-$workloadIdentityDisplayName = "sc-app-maester-$($EnvironmentName.ToLower())"
-$appRegistrationAppId = [string](Get-OptionalPropertyValue -InputObject $serviceConnectionParameters -PropertyNames @('serviceprincipalid', 'servicePrincipalId', 'servicePrincipalID'))
-$aadApplication = $null
-if (-not [string]::IsNullOrWhiteSpace($appRegistrationAppId)) {
-  try {
-    $appByIdResponse = Invoke-MgGraphRequest -Method GET -Uri "https://graph.microsoft.com/v1.0/applications?`$filter=appId eq '$appRegistrationAppId'&`$select=id,appId,displayName"
-  }
-  catch {
-    throw 'Could not look up the service connection Entra application by its appId.'
-  }
-  $appById = Select-UniqueMaesterApplication -Response $appByIdResponse -DisplayName $appRegistrationAppId
-  if ($appById) {
-    $aadApplication = [pscustomobject]@{
-      Id          = $appById.id
-      AppId       = $appById.appId
-      DisplayName = $appById.displayName
-    }
-  }
-}
-
-if ($aadApplication -and -not [string]::IsNullOrWhiteSpace($aadApplication.DisplayName) -and $aadApplication.DisplayName -ne $workloadIdentityDisplayName) {
-  Write-Warning "Service connection currently references app '$($aadApplication.DisplayName)' ($($aadApplication.AppId)). Expected '$workloadIdentityDisplayName'. Using environment-specific app registration instead."
-  $aadApplication = $null
-}
-
-if (-not $aadApplication) {
-  try {
-    $displayNameFilterValue = $workloadIdentityDisplayName -replace "'", "''"
-    $existingAppsResponse = Invoke-MgGraphRequest -Method GET -Uri "https://graph.microsoft.com/v1.0/applications?`$filter=displayName eq '$displayNameFilterValue'&`$select=id,appId,displayName"
-  }
-  catch {
-    throw "Could not look up the Entra application '$workloadIdentityDisplayName' by display name."
-  }
-  $existingApp = Select-UniqueMaesterApplication -Response $existingAppsResponse -DisplayName $workloadIdentityDisplayName
-  if ($existingApp) {
-    $aadApplication = [pscustomobject]@{
-      Id          = $existingApp.id
-      AppId       = $existingApp.appId
-      DisplayName = $existingApp.displayName
-    }
-  }
-}
-
-if (-not $aadApplication) {
-  Write-Host "Creating Entra application registration '$workloadIdentityDisplayName'..."
-  $createAppBody = @{
-    displayName    = $workloadIdentityDisplayName
-    signInAudience = 'AzureADMyOrg'
-  } | ConvertTo-Json -Depth 10
-
-  $createdApp = Invoke-MgGraphRequest -Method POST -Uri 'https://graph.microsoft.com/v1.0/applications' -Body $createAppBody -ContentType 'application/json'
-  $aadApplication = [pscustomobject]@{
-    Id          = $createdApp.id
-    AppId       = $createdApp.appId
-    DisplayName = $createdApp.displayName
-  }
-}
-
-$servicePrincipal = $null
-try {
-  $spResponse = Invoke-MgGraphRequest -Method GET -Uri "https://graph.microsoft.com/v1.0/servicePrincipals?`$filter=appId eq '$($aadApplication.AppId)'&`$select=id,appId,displayName"
-  $spMatches = @($spResponse.value)
-  if ($spMatches.Count -gt 0) {
-    $existingSp = $spMatches[0]
-    $servicePrincipal = [pscustomobject]@{
-      Id          = $existingSp.id
-      AppId       = $existingSp.appId
-      DisplayName = $existingSp.displayName
-    }
-  }
-}
-catch {
-  $servicePrincipal = $null
-}
-
-if (-not $servicePrincipal) {
-  Write-Host "Creating service principal for appId '$($aadApplication.AppId)'..."
-  $createSpBody = @{ appId = $aadApplication.AppId } | ConvertTo-Json -Depth 10
-  $createdSp = Invoke-MgGraphRequest -Method POST -Uri 'https://graph.microsoft.com/v1.0/servicePrincipals' -Body $createSpBody -ContentType 'application/json'
-  $servicePrincipal = [pscustomobject]@{
-    Id          = $createdSp.id
-    AppId       = $createdSp.appId
-    DisplayName = $createdSp.displayName
-  }
-}
-
-$federatedCredentials = @()
-try {
-  $federatedResponse = Invoke-MgGraphRequest -Method GET -Uri "https://graph.microsoft.com/v1.0/applications/$($aadApplication.Id)/federatedIdentityCredentials?`$select=id,name,issuer,subject"
-  $federatedCredentials = @($federatedResponse.value)
-}
-catch {
-  $federatedCredentials = @()
-}
-
-$matchingFederatedCredential = @($federatedCredentials | Where-Object { $_.issuer -eq $workloadIssuer -and $_.subject -eq $workloadSubject }) | Select-Object -First 1
-if (-not $matchingFederatedCredential) {
-  Write-Host 'Creating Entra federated credential for Azure DevOps service connection...'
-  $federatedCredentialName = "ado-$($EnvironmentName.ToLower())"
-  $federatedCredentialBody = @{
-    name        = $federatedCredentialName
-    issuer      = $workloadIssuer
-    subject     = $workloadSubject
-    audiences   = @('api://AzureADTokenExchange')
-    description = "Azure DevOps federation for '$AdoOrganization/$AdoProject'"
-  } | ConvertTo-Json -Depth 10
-
-  $null = Invoke-MgGraphRequest -Method POST -Uri "https://graph.microsoft.com/v1.0/applications/$($aadApplication.Id)/federatedIdentityCredentials" -Body $federatedCredentialBody -ContentType 'application/json'
-}
-Write-Host 'Finalizing Azure DevOps service connection with Entra app details...'
-$serviceConnection = Set-ADOPSServiceConnection `
-  -Organization $AdoOrganization `
-  -Project $AdoProject `
-  -ServiceEndpointId $serviceConnectionId `
-  -ConnectionName $AdoServiceConnectionName `
-  -TenantId $TenantId `
-  -SubscriptionName $subscriptionName `
-  -SubscriptionId $SubscriptionId `
-  -ServicePrincipalId $aadApplication.AppId `
-  -WorkloadIdentityFederationIssuer $workloadIssuer `
-  -WorkloadIdentityFederationSubject $workloadSubject `
-  -Description "Maester federated identity service connection for environment '$EnvironmentName'"
-
-$serviceConnectionAuthorized = Test-AdoServiceConnectionAuthorizedForPipelines `
-  -Organization $AdoOrganization `
-  -Project $AdoProject `
-  -ServiceConnectionId $serviceConnectionId `
-  -ServiceConnectionName $AdoServiceConnectionName `
-  -TenantId $TenantId
-
-Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_SERVICE_CONNECTION_AUTHORIZED' -Value $serviceConnectionAuthorized.ToString().ToLower()
-Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_ORGANIZATION' -Value $AdoOrganization
-Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_PROJECT' -Value $AdoProject
-Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_REPOSITORY' -Value $AdoRepositoryName
-Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_REPOSITORY_ID' -Value $repositoryId
-Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_REPOSITORY_URL' -Value $repositoryUrl
-Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_REPOSITORY_CREATED' -Value $repositoryCreatedByEnvironment.ToString().ToLower()
-Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_SERVICE_CONNECTION_NAME' -Value $AdoServiceConnectionName
-Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_SERVICE_CONNECTION_ID' -Value $serviceConnectionId
-Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_WORKLOAD_APP_ID' -Value $aadApplication.AppId
-Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_WORKLOAD_APP_OBJECT_ID' -Value $aadApplication.Id
-Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_WORKLOAD_SERVICE_PRINCIPAL_OBJECT_ID' -Value $servicePrincipal.Id
-Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_WORKLOAD_IDENTITY_DISPLAY_NAME' -Value $workloadIdentityDisplayName
-
-# ──────────────────────────────────────────────
-# Storage Blob Data Reader for signed-in user
-# ──────────────────────────────────────────────
-
-$storageBlobDataReaderRoleId = "/subscriptions/$SubscriptionId/providers/Microsoft.Authorization/roleDefinitions/2a2b9908-6ea1-4ae2-8e65-a410df84e7d1"
-
-$signedInUser = $null
-try {
-  $signedInUser = Invoke-GraphRestRequest -Method GET -Uri 'https://graph.microsoft.com/v1.0/me?$select=id,userPrincipalName,displayName' -TenantId $TenantId
-}
-catch {
-  Write-Warning ("Could not resolve signed-in user from Azure CLI for Storage Blob Data Reader assignment. Error: {0}" -f $_.Exception.Message)
-}
-
-if ($signedInUser -and $signedInUser.id) {
-  $existingReaderAssignmentsPath = "$($storageResource.id)/providers/Microsoft.Authorization/roleAssignments?`$filter=atScope()&api-version=2022-04-01"
-  $existingReaderAssignmentsResponse = Invoke-AzRestMethod -Method GET -Path $existingReaderAssignmentsPath
-  $existingReaderAssignments = ($existingReaderAssignmentsResponse.Content | ConvertFrom-Json).value
-  $existingReaderAssignment = @($existingReaderAssignments | Where-Object {
-      $_.properties.principalId -eq $signedInUser.id -and $_.properties.roleDefinitionId -eq $storageBlobDataReaderRoleId
-    }) | Select-Object -First 1
-
-  $userLabel = if ($signedInUser.userPrincipalName) { $signedInUser.userPrincipalName } else { $signedInUser.id }
-  if (-not $existingReaderAssignment) {
-    $readerAssignmentName = [guid]::NewGuid().ToString()
-    $readerAssignmentPath = "$($storageResource.id)/providers/Microsoft.Authorization/roleAssignments/${readerAssignmentName}?api-version=2022-04-01"
-    $readerAssignmentBody = @{
-      properties = @{
-        roleDefinitionId = $storageBlobDataReaderRoleId
-        principalId      = $signedInUser.id
-        principalType    = 'User'
-      }
-    } | ConvertTo-Json -Depth 10
-
-    Invoke-AzRestMethod -Method PUT -Path $readerAssignmentPath -Payload $readerAssignmentBody | Out-Null
-    Write-Host "Granted Storage Blob Data Reader on '$($storageResource.name)' to signed-in user '$userLabel'."
-  }
-  else {
-    Write-Host "Storage Blob Data Reader on '$($storageResource.name)' is already assigned to '$userLabel'."
-  }
-}
-else {
-  Write-Warning 'Signed-in user object id was not available. Storage Blob Data Reader assignment for user was skipped.'
-}
-
-$baseRoleAssignmentIds = @()
-
-$resourceGroupScope = "/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroupName"
-$readerRoleId = Test-AzureRoleAssignment -Scope $resourceGroupScope -PrincipalObjectId $servicePrincipal.Id -RoleDefinitionGuid 'acdd72a7-3385-48ef-bd42-f606fba81ae7' -SubscriptionId $SubscriptionId
-if ($readerRoleId) {
-  $baseRoleAssignmentIds += $readerRoleId
-  Write-Host "Assigned Reader on resource group '$ResourceGroupName' to workload identity."
-}
-
-$storageBlobContributorRoleId = Test-AzureRoleAssignment -Scope $storageResource.id -PrincipalObjectId $servicePrincipal.Id -RoleDefinitionGuid 'ba92f5b4-2d11-453d-a403-e96b0029c9fe' -SubscriptionId $SubscriptionId
-if ($storageBlobContributorRoleId) {
-  $baseRoleAssignmentIds += $storageBlobContributorRoleId
-  Write-Host "Assigned Storage Blob Data Contributor on '$($storageResource.name)' to workload identity."
-}
-
-if ($webAppResource) {
-  $websiteContributorRoleId = Test-AzureRoleAssignment -Scope $webAppResource.id -PrincipalObjectId $servicePrincipal.Id -RoleDefinitionGuid 'de139f84-1756-47ae-9be6-808fbbe84772' -SubscriptionId $SubscriptionId
-  if ($websiteContributorRoleId) {
-    $baseRoleAssignmentIds += $websiteContributorRoleId
-    Write-Host "Assigned Website Contributor on '$($webAppResource.name)' to workload identity."
-  }
-}
-
-Set-MaesterAzdEnvJsonArray -EnvironmentName $EnvironmentName -Name 'AZDO_BASE_ROLE_ASSIGNMENT_IDS' -Values @($baseRoleAssignmentIds)
-
-Write-Host 'Granting Microsoft Graph permissions for Maester...'
-$mailRecipientForGraph = if ($env:MAIL_RECIPIENT) { $env:MAIL_RECIPIENT.Trim() } else { '' }
-$includeMailSend = -not [string]::IsNullOrWhiteSpace($mailRecipientForGraph)
-& (Join-Path $PSScriptRoot 'vendor\Azd.MaesterHooks\Grant-MaesterGraphPermissions.ps1') `
-  -TenantId $TenantId `
-  -PrincipalObjectId $servicePrincipal.Id `
-  -PermissionProfile $PermissionProfile `
-  -IncludeMailSend $includeMailSend
-
-$exchangeSetupStatus = if ($IncludeExchange) { 'pending' } else { 'disabled' }
-$teamsSetupStatus = if ($IncludeTeams) { 'pending' } else { 'disabled' }
-$azureSetupStatus = if ($IncludeAzure) { 'pending' } else { 'disabled' }
-
-$exoAppRoleAssignmentIds = @()
-$teamsRoleAssignmentIds = @()
-$azureRoleAssignmentIds = @()
-$exoServicePrincipalDisplayName = $null
-
-if ($IncludeExchange -or $IncludeTeams) {
-  try {
-    $scopes = @(
-      'Application.Read.All',
-      'AppRoleAssignment.ReadWrite.All',
-      'Directory.Read.All',
-      'Directory.AccessAsUser.All',
-      'RoleManagement.ReadWrite.Directory'
-    )
-    Assert-GraphAccess -TenantId $TenantId -Scopes $scopes
-  }
-  catch {
-    $action = Resolve-StepFailureAction -StepName 'Microsoft Graph connection for advanced setup' -Message $_.Exception.Message
-    if ($action -eq 'Stop') {
-      throw
-    }
-    $exchangeSetupStatus = if ($IncludeExchange) { 'skipped' } else { $exchangeSetupStatus }
-    $teamsSetupStatus = if ($IncludeTeams) { 'skipped' } else { $teamsSetupStatus }
-  }
-}
-if ($IncludeExchange -and $exchangeSetupStatus -eq 'pending') {
-  $exchangeAppRoleOk = $false
-  $exchangeRbacOk = $false
-
-  try {
-    $exchangeResourceAppId = '00000002-0000-0ff1-ce00-000000000000'
-    $exchangeManageAsAppRoleId = [Guid]'dc50a0fb-09a3-484d-be87-e023b12c6440'
-
-    $newAssignmentId = Grant-ServicePrincipalAppRoleAssignment -PrincipalObjectId $servicePrincipal.Id -ResourceAppId $exchangeResourceAppId -AppRoleId $exchangeManageAsAppRoleId
-    if ($newAssignmentId) {
-      $exoAppRoleAssignmentIds += $newAssignmentId
-      Write-Host 'Assigned Exchange.ManageAsApp to the Azure DevOps workload identity.'
-    }
-    else {
-      Write-Host 'Exchange.ManageAsApp is already assigned to the Azure DevOps workload identity.'
-    }
-    $exchangeAppRoleOk = $true
-  }
-  catch {
-    $action = Resolve-StepFailureAction -StepName 'Exchange app role assignment (Exchange.ManageAsApp)' -Message $_.Exception.Message
-    if ($action -eq 'Stop') {
-      throw
-    }
-  }
-
-  try {
-    $exoServicePrincipalDisplayName = $servicePrincipal.DisplayName
-    $installMsg = "Exchange Online PowerShell is required to grant the workload identity the Exchange RBAC role 'View-Only Configuration'."
-    if (-not (Test-ModuleAvailable -ModuleName 'ExchangeOnlineManagement' -InstallMessage $installMsg)) {
-      throw 'ExchangeOnlineManagement module is not available. Install it and rerun setup with -IncludeExchange.'
-    }
-
-    $exoOrganization = $null
-    try {
-      $orgResponse = Invoke-MgGraphRequest -Method GET -Uri 'https://graph.microsoft.com/v1.0/organization?$select=verifiedDomains'
-      if ($orgResponse.value -and $orgResponse.value.Count -gt 0) {
-        $initialDomain = @($orgResponse.value[0].verifiedDomains | Where-Object { $_.isInitial -eq $true }) | Select-Object -First 1
-        if ($initialDomain) {
-          $exoOrganization = $initialDomain.name
-        }
-      }
-    }
-    catch {
-      Write-Verbose "Could not resolve tenant initial domain: $($_.Exception.Message)"
-    }
-
-    Connect-ExchangeOnlineSilent -Organization $exoOrganization -TenantId $TenantId
-
-    $existingExchangeSp = $null
-    foreach ($identityValue in @($servicePrincipal.DisplayName, $servicePrincipal.AppId, $servicePrincipal.Id)) {
-      if ([string]::IsNullOrWhiteSpace([string]$identityValue)) {
-        continue
-      }
-
-      try {
-        $candidate = Get-ServicePrincipal -Identity $identityValue -ErrorAction SilentlyContinue
-        $existingExchangeSp = @($candidate) | Select-Object -First 1
-      }
-      catch {
-        $existingExchangeSp = $null
-      }
-
-      if ($existingExchangeSp) {
-        break
-      }
-    }
-
-    if ($existingExchangeSp -and -not [string]::IsNullOrWhiteSpace([string]$existingExchangeSp.DisplayName)) {
-      $exoServicePrincipalDisplayName = [string]$existingExchangeSp.DisplayName
-      Write-Host "Exchange service principal already exists as '$exoServicePrincipalDisplayName'."
-    }
-
-    try {
-      if (-not $existingExchangeSp) {
-        New-ServicePrincipal -AppId $servicePrincipal.AppId -ObjectId $servicePrincipal.Id -DisplayName $servicePrincipal.DisplayName | Out-Null
-        Write-Host "Created/linked Exchange service principal for '$($servicePrincipal.DisplayName)'."
-      }
-    }
-    catch {
-      $message = $_.Exception.Message
-      if ($message -match 'already exists' -or $message -match 'already used') {
-        Write-Host "Exchange service principal mapping already exists for '$($servicePrincipal.DisplayName)'."
-      }
-      else {
-        throw
-      }
-    }
-
-    try {
-      $roleAssignment = New-ManagementRoleAssignment -Role 'View-Only Configuration' -App $exoServicePrincipalDisplayName -ErrorAction Stop
-      if ($roleAssignment -and $roleAssignment.Identity) {
-        Write-Host "Assigned Exchange RBAC role 'View-Only Configuration' to '$exoServicePrincipalDisplayName'."
-      }
-      else {
-        Write-Host "Ensured Exchange RBAC role 'View-Only Configuration' is assigned to '$exoServicePrincipalDisplayName'."
-      }
-      $exchangeRbacOk = $true
-    }
-    catch {
-      $message = $_.Exception.Message
-      if ($message -match 'already exists') {
-        Write-Host "Exchange RBAC role 'View-Only Configuration' is already assigned to '$exoServicePrincipalDisplayName'."
-        $exchangeRbacOk = $true
-      }
-      else {
-        throw
-      }
-    }
-  }
-  catch {
-    $action = Resolve-StepFailureAction -StepName 'Exchange RBAC assignment (View-Only Configuration)' -Message $_.Exception.Message
-    if ($action -eq 'Stop') {
-      throw
-    }
-  }
-
-  if ($exchangeAppRoleOk -and $exchangeRbacOk) {
-    $exchangeSetupStatus = 'configured'
-  }
-  else {
-    $exchangeSetupStatus = 'skipped'
-  }
-}
-
-if ($IncludeTeams -and $teamsSetupStatus -eq 'pending') {
-  try {
-    $teamsRoleCandidates = @(
-      'Teams Reader',
-      'Teams Administrator'
-    )
-
-    $teamsRoleConfigured = $false
-    $selectedTeamsRole = $null
-    $lastTeamsRoleError = $null
-    foreach ($candidateRole in $teamsRoleCandidates) {
-      try {
-        $newTeamsRoleAssignmentId = Test-DirectoryRoleAssignment -PrincipalObjectId $servicePrincipal.Id -RoleDisplayName $candidateRole
-        if ($newTeamsRoleAssignmentId) {
-          $teamsRoleAssignmentIds += $newTeamsRoleAssignmentId
-          Write-Host "Assigned Entra directory role '$candidateRole' to the Azure DevOps workload identity."
-        }
-        else {
-          Write-Host "Entra directory role '$candidateRole' is already assigned to the Azure DevOps workload identity."
-        }
-
-        $selectedTeamsRole = $candidateRole
-        $teamsRoleConfigured = $true
-        break
-      }
-      catch {
-        $lastTeamsRoleError = $_
-        Write-Warning ("Teams role assignment attempt failed for role '{0}': {1}" -f $candidateRole, $_.Exception.Message)
-      }
-    }
-
-    if (-not $teamsRoleConfigured) {
-      if ($lastTeamsRoleError) {
-        throw $lastTeamsRoleError
-      }
-      throw 'Unable to assign a Teams directory role to the Azure DevOps workload identity.'
-    }
-
-    if ($selectedTeamsRole) {
-      Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'TEAMS_DIRECTORY_ROLE' -Value $selectedTeamsRole
-    }
-
-    $teamsSetupStatus = 'configured'
-  }
-  catch {
-    $action = Resolve-StepFailureAction -StepName 'Teams directory role assignment' -Message $_.Exception.Message
-    if ($action -eq 'Stop') {
-      throw
-    }
-    $teamsSetupStatus = 'skipped'
-  }
-}
-
-if ($IncludeAzure -and $azureSetupStatus -eq 'pending') {
-  $succeededScopes = 0
-  foreach ($scope in @($AzureScopes)) {
-    if ([string]::IsNullOrWhiteSpace($scope)) {
-      continue
-    }
-
-    try {
-      $newAzureAssignmentId = Test-AzureReaderRoleAssignment -Scope $scope -PrincipalObjectId $servicePrincipal.Id -SubscriptionId $SubscriptionId
-      if ($newAzureAssignmentId) {
-        $azureRoleAssignmentIds += $newAzureAssignmentId
-        Write-Host "Granted Azure RBAC Reader to Azure DevOps workload identity at scope: $scope"
-      }
-      else {
-        Write-Host "Azure RBAC Reader already exists or was already satisfied at scope: $scope"
-      }
-      $succeededScopes++
-    }
-    catch {
-      $action = Resolve-StepFailureAction -StepName "Azure RBAC Reader assignment at scope $scope" -Message $_.Exception.Message
-      if ($action -eq 'Stop') {
-        throw
-      }
-      continue
-    }
-  }
-
-  $azureSetupStatus = if ($succeededScopes -gt 0) { 'configured' } else { 'skipped' }
-}
-
-Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'SETUP_EXCHANGE_STATUS' -Value $exchangeSetupStatus
-Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'SETUP_TEAMS_STATUS' -Value $teamsSetupStatus
-Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'SETUP_AZURE_STATUS' -Value $azureSetupStatus
-Set-MaesterAzdEnvJsonArray -EnvironmentName $EnvironmentName -Name 'EXO_APPROLE_ASSIGNMENT_IDS' -Values @($exoAppRoleAssignmentIds)
-Set-MaesterAzdEnvJsonArray -EnvironmentName $EnvironmentName -Name 'TEAMS_READER_ROLE_ASSIGNMENT_IDS' -Values @($teamsRoleAssignmentIds)
-Set-MaesterAzdEnvJsonArray -EnvironmentName $EnvironmentName -Name 'AZURE_ROLE_ASSIGNMENT_IDS' -Values @($azureRoleAssignmentIds)
-if ($exoServicePrincipalDisplayName) {
-  Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'EXO_SERVICE_PRINCIPAL_DISPLAY_NAME' -Value $exoServicePrincipalDisplayName
-}
-$includeWebApp = [bool]$webAppResource
-if ($includeWebApp) {
-  $securityGroupSource = 'parameter'
-  if (-not $PSBoundParameters.ContainsKey('SecurityGroupObjectId') -and -not $PSBoundParameters.ContainsKey('SecurityGroupDisplayName')) {
-    if ($env:SECURITY_GROUP_OBJECT_ID -or $env:EASY_AUTH_SECURITY_GROUP_OBJECT_ID) {
-      $securityGroupSource = 'environment'
-    }
-  }
-
-  if (-not $SecurityGroupObjectId -and -not [string]::IsNullOrWhiteSpace($SecurityGroupDisplayName)) {
-    Assert-GraphAccess -TenantId $TenantId -Scopes 'Group.Read.All','Directory.Read.All'
-
-    $escapedDisplayName = [System.Uri]::EscapeDataString("'$SecurityGroupDisplayName'")
-    $groupsResponse = Invoke-MgGraphRequest -Method GET -Uri "https://graph.microsoft.com/v1.0/groups?`$filter=displayName eq $escapedDisplayName&`$select=id,displayName,description&`$top=25"
-    $groupMatches = @($groupsResponse.value)
-
-    if ($groupMatches.Count -eq 0) {
-      throw "No Entra security groups found with display name '$SecurityGroupDisplayName'."
-    }
-
-    if ($groupMatches.Count -eq 1) {
-      $SecurityGroupObjectId = $groupMatches[0].id
-      Write-Host "Resolved security group '$SecurityGroupDisplayName' to object ID '$SecurityGroupObjectId'."
-    }
-    else {
-      throw "Multiple Entra security groups matched '$SecurityGroupDisplayName'. Provide SecurityGroupObjectId to avoid ambiguity."
-    }
-  }
-
-  if (-not $SecurityGroupObjectId) {
-    throw 'SecurityGroupObjectId is required to configure Easy Auth when includeWebApp=true. Provide -SecurityGroupObjectId, set SECURITY_GROUP_OBJECT_ID, or set EASY_AUTH_SECURITY_GROUP_OBJECT_ID.'
-  }
-
-  Assert-GraphAccess -TenantId $TenantId -Scopes 'Application.ReadWrite.All','Directory.Read.All','DelegatedPermissionGrant.ReadWrite.All'
-
-  $webAppName = $webAppResource.name
-  $webAppHostName = $null
-
-  $webAppProperties = Get-OptionalPropertyValue -InputObject $webAppResource -PropertyNames @('properties')
-  if ($webAppProperties) {
-    $webAppHostName = [string](Get-OptionalPropertyValue -InputObject $webAppProperties -PropertyNames @('defaultHostName'))
-  }
-
-  if ([string]::IsNullOrWhiteSpace($webAppHostName)) {
-    $webAppDetailPath = "$($webAppResource.id)?api-version=2023-12-01"
-    $webAppDetailResponse = Invoke-AzRestMethod -Method GET -Path $webAppDetailPath
-    if ($webAppDetailResponse.StatusCode -in @(200, 201) -and -not [string]::IsNullOrWhiteSpace($webAppDetailResponse.Content)) {
-      $webAppDetail = $webAppDetailResponse.Content | ConvertFrom-Json
-      if ($webAppDetail -and $webAppDetail.properties -and $webAppDetail.properties.defaultHostName) {
-        $webAppHostName = [string]$webAppDetail.properties.defaultHostName
-      }
-    }
-  }
-
-  if ([string]::IsNullOrWhiteSpace($webAppHostName)) {
-    throw "Could not determine default host name for Web App '$webAppName'."
-  }
-
-  $redirectUri = "https://$webAppHostName/.auth/login/aad/callback"
-  $easyAuthDisplayName = "maester-easyauth-$webAppName"
-
-  $encodedDisplayName = [System.Uri]::EscapeDataString("'$easyAuthDisplayName'")
-  $existingAppResponse = Invoke-MgGraphRequest -Method GET -Uri "https://graph.microsoft.com/v1.0/applications?`$filter=displayName eq $encodedDisplayName"
-  $desiredRedirectUris = @($redirectUri)
-  $aadApp = if ($existingAppResponse.value -and $existingAppResponse.value.Count -gt 0) {
-    $existingApp = $existingAppResponse.value[0]
-
-    $existingRedirectUris = @()
-    if ($existingApp.web -and $existingApp.web.redirectUris) {
-      $existingRedirectUris = @($existingApp.web.redirectUris)
-    }
-
-    $mergedRedirectUris = @($existingRedirectUris + $desiredRedirectUris | Sort-Object -Unique)
-    $updateAppBody = @{
-      groupMembershipClaims = 'SecurityGroup'
-      web = @{
-        redirectUris = $mergedRedirectUris
-        implicitGrantSettings = @{
-          enableIdTokenIssuance = $true
-          enableAccessTokenIssuance = $false
-        }
-      }
-    } | ConvertTo-Json -Depth 10
-
-    Invoke-MgGraphRequest -Method PATCH -Uri "https://graph.microsoft.com/v1.0/applications/$($existingApp.id)" -Body $updateAppBody -ContentType 'application/json' | Out-Null
-    Invoke-MgGraphRequest -Method GET -Uri "https://graph.microsoft.com/v1.0/applications/$($existingApp.id)?`$select=id,appId,displayName,groupMembershipClaims,web"
-  }
-  else {
-    $createAppBody = @{
-      displayName = $easyAuthDisplayName
-      signInAudience = 'AzureADMyOrg'
-      groupMembershipClaims = 'SecurityGroup'
-      web = @{
-        redirectUris = $desiredRedirectUris
-        implicitGrantSettings = @{
-          enableIdTokenIssuance = $true
-          enableAccessTokenIssuance = $false
-        }
-      }
-    } | ConvertTo-Json -Depth 10
-    Invoke-MgGraphRequest -Method POST -Uri 'https://graph.microsoft.com/v1.0/applications' -Body $createAppBody -ContentType 'application/json'
-  }
-
-  Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'EASY_AUTH_ENTRA_APP_OBJECT_ID' -Value $aadApp.id
-  Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'EASY_AUTH_ENTRA_APP_CLIENT_ID' -Value $aadApp.appId
-  Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'EASY_AUTH_ENTRA_APP_DISPLAY_NAME' -Value $aadApp.displayName
-
-  $servicePrincipalResponse = Invoke-MgGraphRequest -Method GET -Uri "https://graph.microsoft.com/v1.0/servicePrincipals?`$filter=appId eq '$($aadApp.appId)'"
-  $easyAuthServicePrincipal = $null
-  if (-not $servicePrincipalResponse.value -or $servicePrincipalResponse.value.Count -eq 0) {
-    $spBody = @{ appId = $aadApp.appId } | ConvertTo-Json
-    $easyAuthServicePrincipal = Invoke-MgGraphRequest -Method POST -Uri 'https://graph.microsoft.com/v1.0/servicePrincipals' -Body $spBody -ContentType 'application/json'
-  }
-  else {
-    $easyAuthServicePrincipal = $servicePrincipalResponse.value[0]
-  }
-
-  $graphSpResponse = Invoke-MgGraphRequest -Method GET -Uri "https://graph.microsoft.com/v1.0/servicePrincipals?`$filter=appId eq '00000003-0000-0000-c000-000000000000'&`$select=id"
-  if (-not $graphSpResponse.value -or $graphSpResponse.value.Count -eq 0) {
-    throw 'Microsoft Graph service principal was not found while configuring Easy Auth admin consent.'
-  }
-
-  $graphSpId = $graphSpResponse.value[0].id
-  $consentScope = 'openid profile email User.Read'
-  $existingGrantResponse = Invoke-MgGraphRequest -Method GET -Uri "https://graph.microsoft.com/v1.0/oauth2PermissionGrants?`$filter=clientId eq '$($easyAuthServicePrincipal.id)' and resourceId eq '$graphSpId' and consentType eq 'AllPrincipals'"
-  if ($existingGrantResponse.value -and $existingGrantResponse.value.Count -gt 0) {
-    $existingGrant = $existingGrantResponse.value[0]
-    $currentScopes = @()
-    if ($existingGrant.scope) {
-      $currentScopes = @($existingGrant.scope -split '\s+' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-    }
-
-    $requiredScopes = @($consentScope -split '\s+' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-    $mergedScopes = @($currentScopes + $requiredScopes | Sort-Object -Unique)
-    $mergedScopeString = $mergedScopes -join ' '
-
-    if ($mergedScopeString -ne $existingGrant.scope) {
-      $patchGrantBody = @{ scope = $mergedScopeString } | ConvertTo-Json
-      Invoke-MgGraphRequest -Method PATCH -Uri "https://graph.microsoft.com/v1.0/oauth2PermissionGrants/$($existingGrant.id)" -Body $patchGrantBody -ContentType 'application/json' | Out-Null
-    }
-  }
-  else {
-    $grantBody = @{
-      clientId = $easyAuthServicePrincipal.id
-      consentType = 'AllPrincipals'
-      resourceId = $graphSpId
-      scope = $consentScope
-    } | ConvertTo-Json
-
-    Invoke-MgGraphRequest -Method POST -Uri 'https://graph.microsoft.com/v1.0/oauth2PermissionGrants' -Body $grantBody -ContentType 'application/json' | Out-Null
-  }
-
-  $authPayload = @{
-    properties = @{
-      platform = @{
-        enabled = $true
-      }
-      globalValidation = @{
-        requireAuthentication = $true
-        unauthenticatedClientAction = 'RedirectToLoginPage'
-      }
-      httpSettings = @{
-        requireHttps = $true
-      }
-      identityProviders = @{
-        azureActiveDirectory = @{
-          enabled = $true
-          registration = @{
-            clientId = $aadApp.appId
-            openIdIssuer = "https://login.microsoftonline.com/$TenantId/v2.0"
-          }
-          validation = @{
-            allowedAudiences = @("https://$webAppHostName")
-            defaultAuthorizationPolicy = @{
-              allowedPrincipals = @{
-                groups = @($SecurityGroupObjectId)
-              }
-            }
-          }
-        }
-      }
-      login = @{
-        routes = @{}
-      }
-    }
-  } | ConvertTo-Json -Depth 15
-
-  $authPath = "/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.Web/sites/$webAppName/config/authsettingsV2?api-version=2023-12-01"
-  Invoke-AzRestMethod -Method PUT -Path $authPath -Payload $authPayload | Out-Null
-
-  Write-Host "Configured Easy Auth for Web App '$webAppName'."
-  Write-Host "Easy Auth security group: $SecurityGroupObjectId (source: $securityGroupSource)"
-}
 $pipelineTemplatePath = Join-Path -Path $projectRoot -ChildPath 'pipelines/template-maester.yml'
 if (-not (Test-Path -Path $pipelineTemplatePath)) {
   throw "Pipeline template was not found: $pipelineTemplatePath"
@@ -1565,6 +712,7 @@ $templateContent = Get-Content -Path $pipelineTemplatePath -Raw
 $runnerScriptContent = Get-Content -Path (Join-Path -Path $PSScriptRoot -ChildPath 'Invoke-MaesterAzureDevOpsRun.ps1') -Raw
 $moduleInstallerContent = Get-Content -Path (Join-Path -Path $PSScriptRoot -ChildPath 'Install-LockedModules.ps1') -Raw
 $driftInputsContent = Get-Content -Path (Join-Path -Path $PSScriptRoot -ChildPath 'Maester.DriftInputs.psm1') -Raw
+$assessmentEvidenceContent = Get-Content -Path (Join-Path $PSScriptRoot 'Maester.AssessmentEvidence.psm1') -Raw
 $driftRunContent = Get-Content -Path (Join-Path -Path $PSScriptRoot -ChildPath 'Maester.DriftRun.psm1') -Raw
 $moduleLockContent = Get-Content -Path (Join-Path -Path $projectRoot -ChildPath 'runtime-packages.lock.json') -Raw
 
@@ -1572,6 +720,9 @@ $replacementMap = @{
   '__SERVICE_CONNECTION__' = $AdoServiceConnectionName
   '__DEFAULT_BRANCH__' = $DefaultBranch
   '__SCHEDULE_CRON__' = $ScheduleCron
+  '__PERMISSION_PROFILE__' = $PermissionProfile
+  '__INCLUDE_MAIL_SEND__' = ([bool]$IncludeMailSend).ToString().ToLower()
+  '__INCLUDE_REPORT_SETTINGS_WRITE__' = ([bool]$IncludeReportSettingsWrite).ToString().ToLower()
   '__INCLUDE_EXCHANGE__' = ([bool]$IncludeExchange).ToString().ToLower()
   '__INCLUDE_TEAMS__' = ([bool]$IncludeTeams).ToString().ToLower()
   '__INCLUDE_AZURE__' = ([bool]$IncludeAzure).ToString().ToLower()
@@ -1586,6 +737,9 @@ $replacementMap = @{
   '__FAIL_ON_TEST_FAILURES__' = $FailOnTestFailures.ToString().ToLower()
 }
 
+foreach ($value in $replacementMap.Values) {
+  if ([string]$value -match '[\r\n\x22\x27\x60$]') { throw 'Pipeline settings must be literal single-line values without quotes, backticks or dollar-sign expansions.' }
+}
 $renderedPipeline = $templateContent
 foreach ($key in $replacementMap.Keys) {
   $renderedPipeline = $renderedPipeline.Replace($key, [string]$replacementMap[$key])
@@ -1612,11 +766,66 @@ $pipelineFiles = @(
     Path = 'scripts/Maester.DriftRun.psm1'
     Content = $driftRunContent
   },
+  [pscustomobject]@{ Path = 'scripts/Maester.AssessmentEvidence.psm1'; Content = $assessmentEvidenceContent },
   [pscustomobject]@{
     Path = 'runtime-packages.lock.json'
     Content = $moduleLockContent
   }
 )
+
+# The rendered runtime files and exact publication destination are part of the
+# reviewed aggregate plan. A later source edit invalidates that approval.
+$fileEvidence = @($pipelineFiles | ForEach-Object {
+  [ordered]@{ path = $_.Path; sha256 = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($_.Content))).ToLowerInvariant() }
+})
+$pipelineConfiguration = @{
+  repositoryId = $repositoryId; repositoryUrl = $repositoryUrl; pipelineName = $AdoPipelineName
+  yamlPath = $pipelineRepoPath; branch = $DefaultBranch; schedule = $ScheduleCron
+  pushFiles = $PushPipelineFiles; validateRun = $ValidatePipelineRun; files = $fileEvidence
+}
+$accessPlanParameters = @{
+  TenantId = $TenantId; SubscriptionId = $SubscriptionId; PrincipalObjectId = $servicePrincipal.id
+  ResourceId = "/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroupName"
+  StorageAccount = $storageResource; WebApp = $webAppResource; ArmHeaders = $armHeaders
+  AdoParameters = $adoParameters; PipelineConfiguration = $pipelineConfiguration
+  SecurityGroupObjectId = $SecurityGroupObjectId; SecurityGroupDisplayName = $SecurityGroupDisplayName
+  PermissionProfile = $PermissionProfile; IncludeMailSend = [bool]$IncludeMailSend; IncludeReportSettingsWrite = [bool]$IncludeReportSettingsWrite
+  IncludeExchange = $IncludeExchange; IncludeTeams = $IncludeTeams; IncludeAzure = $IncludeAzure; AzureScopes = $AzureScopes
+}
+if (-not (Get-Module -ListAvailable -Name ADOPS)) { throw 'Install the reviewed ADOPS setup dependency before applying pipeline configuration.' }
+Import-Module ADOPS -Force
+
+$accessPlan = Get-MaesterSetupAccessPlan @accessPlanParameters
+Write-Host ($accessPlan | ConvertTo-Json -Depth 100)
+if ($InteractiveConsent) { $ApprovedPlanHash = Confirm-MaesterConsentPlan -Plan $accessPlan; $Apply = $true }
+if (-not $Apply) { Write-Host 'Plan only. No grants, app changes, pipeline permissions, file pushes, runs or receipts were written.'; return $accessPlan }
+$accessResult = Invoke-MaesterSetupAccessPlan -PlanParameters $accessPlanParameters -ApprovedPlanHash $ApprovedPlanHash
+$approvedPipeline = $accessResult.Plan.details.pipelineInventory.pipeline
+# Rebind before publishing files or reusing a pipeline after access writes.
+$pipelineBinding = Assert-MaesterAdoPipelineBinding -Identity $adoIdentity -Configuration $pipelineConfiguration -Parameters $adoParameters -ExpectedPipeline $approvedPipeline
+$baseRoleAssignmentIds = @($accessResult.Receipts.AZDO_BASE_ROLE_ASSIGNMENT_IDS)
+$exoAppRoleAssignmentIds = @($accessResult.Receipts.EXO_APPROLE_ASSIGNMENT_IDS)
+$teamsRoleAssignmentIds = @($accessResult.Receipts.TEAMS_READER_ROLE_ASSIGNMENT_IDS)
+$azureRoleAssignmentIds = @($accessResult.Receipts.AZURE_ROLE_ASSIGNMENT_IDS)
+$exchangeSetupStatus = if ($IncludeExchange) { 'configured' } else { 'disabled' }
+$teamsSetupStatus = if ($IncludeTeams) { 'configured' } else { 'disabled' }
+$azureSetupStatus = if ($IncludeAzure) { 'configured' } else { 'disabled' }
+foreach ($name in $accessResult.Receipts.Keys) {
+  # Receipts from earlier successful runs remain valid and must not be discarded.
+  $existing = @(Get-EnvValue $envLines $name) -split ';' | Where-Object { $_ }
+  Set-MaesterAzdEnvJsonArray -EnvironmentName $EnvironmentName -Name $name -Values @($existing + $accessResult.Receipts[$name] | Sort-Object -Unique)
+}
+foreach ($entry in @(@('SETUP_EXCHANGE_STATUS', $exchangeSetupStatus), @('SETUP_TEAMS_STATUS', $teamsSetupStatus), @('SETUP_AZURE_STATUS', $azureSetupStatus))) {
+  Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name $entry[0] -Value $entry[1]
+}
+if ($accessResult.EasyAuth) {
+  foreach ($entry in @(@('EASY_AUTH_ENTRA_APP_OBJECT_ID', $accessResult.EasyAuth.objectId), @('EASY_AUTH_ENTRA_APP_CLIENT_ID', $accessResult.EasyAuth.clientId), @('EASY_AUTH_ENTRA_APP_DISPLAY_NAME', $accessResult.EasyAuth.displayName))) {
+    Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name $entry[0] -Value $entry[1]
+  }
+  $SecurityGroupObjectId = $accessResult.EasyAuth.securityGroupId
+}
+$devOpsToken = Get-AzureDevOpsAccessToken -TenantId $TenantId
+Connect-ADOPS -Organization $AdoOrganization -OAuthToken $devOpsToken -SkipVerification | Out-Null
 
 $pushResult = [pscustomobject]@{
   Pushed     = $false
@@ -1628,7 +837,7 @@ $pushResult = [pscustomobject]@{
 $manualFilesPath = $null
 if ($PushPipelineFiles) {
   try {
-    $pushResult = Push-RepositoryFiles -RepositoryUrl $repositoryUrl -Branch $DefaultBranch -BearerToken $devOpsToken -Files $pipelineFiles
+    $pushResult = Push-RepositoryFiles -RepositoryUrl $repositoryUrl -Branch $DefaultBranch -BearerToken $devOpsToken -Files $pipelineFiles -ExpectedBranchObjectId $accessResult.Plan.details.pipelineInventory.branchObjectId
     if ($pushResult.Pushed) {
       Write-Host "Pipeline files pushed to repository '$AdoRepositoryName' branch '$DefaultBranch'."
     }
@@ -1651,7 +860,7 @@ if ($PushPipelineFiles) {
       if (-not (Test-Path -Path $targetDir)) {
         New-Item -Path $targetDir -ItemType Directory -Force | Out-Null
       }
-      Set-Content -Path $target -Value $file.Content -Encoding utf8
+      Set-Content -LiteralPath $target -Value $file.Content -Encoding utf8 -NoNewline
     }
 
     Write-Warning "Manual pipeline files created at: $manualFilesPath"
@@ -1671,18 +880,15 @@ else {
   Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_MANUAL_PIPELINE_FILES_PATH' -Value ''
 }
 
-$pipeline = $null
-try {
-  $pipeline = Get-ADOPSPipeline -Project $AdoProject -Name $AdoPipelineName -Organization $AdoOrganization -ErrorAction Stop
-}
-catch {
-  $pipeline = $null
-}
-
+# Re-read again at the definition boundary; never adopt a same-name replacement.
+$pipelineBinding = Assert-MaesterAdoPipelineBinding -Identity $adoIdentity -Configuration $pipelineConfiguration -Parameters $adoParameters -ExpectedPipeline $approvedPipeline
+$pipeline = $pipelineBinding
 if (-not $pipeline) {
   Write-Host "Creating pipeline '$AdoPipelineName'..."
   try {
-    $pipeline = New-ADOPSPipeline -Project $AdoProject -Name $AdoPipelineName -Repository $AdoRepositoryName -YamlPath "/$pipelineRepoPath" -Organization $AdoOrganization
+    $createdPipeline = New-ADOPSPipeline -Project $AdoProject -Name $AdoPipelineName -Repository $AdoRepositoryName -YamlPath "/$pipelineRepoPath" -Organization $AdoOrganization
+    $pipelineBinding = Assert-MaesterAdoPipelineBinding -Identity $adoIdentity -Configuration $pipelineConfiguration -Parameters $adoParameters -CreatedPipelineId ([string]$createdPipeline.id)
+    $pipeline = $pipelineBinding
   } catch {
     if ($manualFilesPath) {
       throw "Pipeline creation failed because the YAML file is not yet in repository '$AdoRepositoryName'. Upload files from '$manualFilesPath' and rerun Setup-PostDeploy.ps1. Error: $($_.Exception.Message)"
@@ -1709,6 +915,10 @@ $validationResult = [pscustomobject]@{
 }
 
 if ($ValidatePipelineRun) {
+  if ($manualFilesPath) { throw 'Pipeline files require manual publication. Review a fresh plan after upload before validation.' }
+  $pipelineBinding = Assert-MaesterAdoPipelineBinding -Identity $adoIdentity -Configuration $pipelineConfiguration -Parameters $adoParameters -ExpectedPipeline $pipelineBinding
+  $sourceVersion = if ($PushPipelineFiles) { [string](Get-OptionalPropertyValue -InputObject $pushResult -PropertyNames 'CommitId') } else { [string]$accessResult.Plan.details.pipelineInventory.branchObjectId }
+  if ($sourceVersion -cnotmatch '^[a-f0-9]{40}$') { throw 'An exact reviewed or published source commit is required before validation.' }
   Write-Host 'Starting and validating initial Azure DevOps pipeline run...'
   $validationResult = & "$PSScriptRoot\Invoke-PipelineValidation.ps1" `
     -AdoOrganization $AdoOrganization `
@@ -1716,6 +926,8 @@ if ($ValidatePipelineRun) {
     -PipelineName $AdoPipelineName `
     -Branch $DefaultBranch `
     -TimeoutMinutes 30 `
+    -ExpectedPipelineBinding $pipelineBinding `
+    -ExpectedSourceVersion $sourceVersion `
     -SubscriptionId $SubscriptionId `
     -TenantId $TenantId `
     -PassThru

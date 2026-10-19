@@ -311,6 +311,20 @@ function Read-SecurityGroupObjectId {
   }
 }
 
+function Read-MaesterSetupIdentity {
+  [CmdletBinding()]
+  param([Parameter(Mandatory)]$Values, [Parameter(Mandatory)][bool]$InteractiveWizard)
+
+  $clientId = Read-TextChoice -Prompt 'Tenant-owned setup application client ID (administrator bootstrap required)' -CurrentValue (Get-AzdEnvironmentValue -Values $Values -Name 'MAESTER_SETUP_CLIENT_ID') -AllowEmpty $false -InteractiveWizard $InteractiveWizard
+  $account = Read-TextChoice -Prompt 'Setup administrator account UPN' -CurrentValue (Get-AzdEnvironmentValue -Values $Values -Name 'MAESTER_SETUP_ACCOUNT') -AllowEmpty $false -InteractiveWizard $InteractiveWizard
+  $clientGuid = [guid]::Empty
+  if (-not [guid]::TryParse($clientId, [ref]$clientGuid) -or $clientGuid -eq [guid]::Empty -or
+      $clientGuid -eq [guid]'14d82eec-204b-4c2f-b7e8-296a70dab67e' -or $account -notmatch '^[^@\s]+@[^@\s]+$') {
+    throw 'MAESTER_SETUP_CLIENT_ID must identify your tenant-owned setup public client, and MAESTER_SETUP_ACCOUNT must be an explicit administrator UPN.'
+  }
+  return @{ ClientId = $clientGuid.ToString(); Account = $account }
+}
+
 function ConvertFrom-AzureScopes {
   param(
     [Parameter(Mandatory = $false)]
@@ -462,8 +476,30 @@ function Invoke-MaesterUpWizard {
     -AllowEmpty $true `
     -InteractiveWizard $interactiveWizard
 
+  $mailSendCurrent = ConvertTo-BoolOrNull (Get-AzdEnvironmentValue -Values $envValues -Name 'INCLUDE_MAIL_SEND')
+  $includeMailSend = Read-BoolChoice -Prompt 'Enable the separate Mail.Send capability for report delivery?' -CurrentValue $mailSendCurrent -InteractiveDefault $false -InteractiveWizard $interactiveWizard
+  if ($includeMailSend -and [string]::IsNullOrWhiteSpace($mailRecipient)) {
+    throw 'MAIL_RECIPIENT is required when INCLUDE_MAIL_SEND=true. Configure report delivery or disable the separate mail capability.'
+  }
+
   $webAppSku = if ([string]::IsNullOrWhiteSpace($webAppSkuCurrent)) { 'F1' } else { $webAppSkuCurrent }
-  $permissionProfile = if ([string]::IsNullOrWhiteSpace($permissionProfileCurrent)) { 'Extended' } else { $permissionProfileCurrent }
+  if ($permissionProfileCurrent -and $permissionProfileCurrent -notin @('Minimal', 'Full', 'Extended')) {
+    throw 'PERMISSION_PROFILE must be Minimal, Full, or the legacy Extended profile.'
+  }
+  if (-not $interactiveWizard) {
+    # An unattended upgrade never silently expands the selected profile.
+    $permissionProfile = if ($permissionProfileCurrent) { $permissionProfileCurrent } else { 'Minimal' }
+  }
+  else {
+    if ($permissionProfileCurrent -eq 'Extended') {
+      Write-Host 'Extended is the legacy permission set. Full uses the reviewed Maester 2.3.0 assessment manifest; new grants require a separate plan approval.'
+    }
+    $fullAssessment = Read-BoolChoice -Prompt 'Grant the permissions needed for the full assessment?' -CurrentValue $null -InteractiveDefault $true -InteractiveWizard $true
+    $permissionProfile = if ($fullAssessment) { 'Full' } else { 'Minimal' }
+  }
+  $reportSettingsWriteCurrent = ConvertTo-BoolOrNull (Get-AzdEnvironmentValue -Values $envValues -Name 'INCLUDE_REPORT_SETTINGS_WRITE')
+  $reportSettingsWrite = Read-BoolChoice -Prompt 'Allow the separate tenant report-settings write capability?' -CurrentValue $reportSettingsWriteCurrent -InteractiveDefault $false -InteractiveWizard $interactiveWizard
+
 
   $securityGroupObjectId = $securityGroupObjectIdCurrent
   if ($includeWebApp) {
@@ -479,6 +515,8 @@ function Invoke-MaesterUpWizard {
     -ExistingScopes $azureScopesCurrent `
     -ResourceTypeName $SolutionName
 
+  $setupIdentity = Read-MaesterSetupIdentity -Values $envValues -InteractiveWizard $interactiveWizard
+
   $currentAzureLocation = Get-AzdEnvironmentValue -Values $envValues -Name 'AZURE_LOCATION'
   if ([string]::IsNullOrWhiteSpace($currentAzureLocation)) {
     Set-AzdEnvValueStrict -Name 'AZURE_LOCATION' -Value $effectiveLocation
@@ -490,8 +528,12 @@ function Invoke-MaesterUpWizard {
   Set-AzdEnvValueStrict -Name 'INCLUDE_TEAMS' -Value $includeTeams.ToString().ToLower()
   Set-AzdEnvValueStrict -Name 'INCLUDE_AZURE' -Value $includeAzure.ToString().ToLower()
   Set-AzdEnvValueStrict -Name 'WEB_APP_SKU' -Value $webAppSku
+  Set-AzdEnvValueStrict -Name 'MAESTER_SETUP_CLIENT_ID' -Value $setupIdentity.ClientId
+  Set-AzdEnvValueStrict -Name 'MAESTER_SETUP_ACCOUNT' -Value $setupIdentity.Account
   Set-AzdEnvValueStrict -Name 'PERMISSION_PROFILE' -Value $permissionProfile
+  Set-AzdEnvValueStrict -Name 'INCLUDE_REPORT_SETTINGS_WRITE' -Value $reportSettingsWrite.ToString().ToLower()
   Set-AzdEnvValueStrict -Name 'MAIL_RECIPIENT' -Value $mailRecipient
+  Set-AzdEnvValueStrict -Name 'INCLUDE_MAIL_SEND' -Value $includeMailSend.ToString().ToLower()
   Set-AzdEnvValueStrict -Name 'AZURE_RBAC_SCOPES' -Value $azureScopesSerialized
 
   if ($includeWebApp) {

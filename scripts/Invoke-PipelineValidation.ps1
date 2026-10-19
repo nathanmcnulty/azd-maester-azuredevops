@@ -22,6 +22,10 @@ param(
   [Parameter(Mandatory = $false)]
   [string]$TenantId,
 
+  [hashtable]$ExpectedPipelineBinding,
+
+  [string]$ExpectedSourceVersion,
+
   [switch]$PassThru
 )
 
@@ -163,13 +167,39 @@ if ($SubscriptionId -and [string]::IsNullOrWhiteSpace($devOpsToken)) {
 $devOpsToken = Get-AzureDevOpsAccessToken -SubscriptionId $SubscriptionId -TenantId $TenantId
 Connect-ADOPS -Organization $AdoOrganization -OAuthToken $devOpsToken -SkipVerification | Out-Null
 
-$pipeline = Get-ADOPSPipeline -Project $AdoProject -Name $PipelineName -Organization $AdoOrganization
-if (-not $pipeline) {
-  throw "Pipeline '$PipelineName' was not found in project '$AdoProject'."
+if ($ExpectedPipelineBinding) {
+  $binding = $ExpectedPipelineBinding
+  if ([string]$binding.id -cnotmatch '^[1-9][0-9]*$' -or [string]$binding.revision -cnotmatch '^[1-9][0-9]*$' -or
+      $binding.name -cne $PipelineName -or $binding.branch -cne "refs/heads/$Branch" -or
+      $ExpectedSourceVersion -cnotmatch '^[a-f0-9]{40}$') { throw 'Invalid approved pipeline validation binding.' }
+  $root = "https://dev.azure.com/$([uri]::EscapeDataString($AdoOrganization))/$([uri]::EscapeDataString($AdoProject))/_apis"
+  $definition = Invoke-ADOPSRestMethod -Method GET -Uri "$root/build/definitions/$($binding.id)?api-version=7.1"
+  if ([string]$definition.id -cne [string]$binding.id -or [string]$definition.revision -cne [string]$binding.revision -or
+      $definition.name -cne $PipelineName -or $definition.project.id -ine $binding.projectId -or
+      $definition.repository.id -ine $binding.repositoryId -or $definition.repository.defaultBranch -cne $binding.branch -or
+      $definition.process.yamlFilename.TrimStart('/') -cne $binding.yamlPath.TrimStart('/')) {
+    throw 'Pipeline definition changed after setup approval; validation was not queued.'
+  }
+  # ADOPS Start-ADOPSPipeline resolves by name internally. Queue directly by the
+  # verified ID and revision, pinning the repository commit as well as its ref.
+  $body = @{ resources = @{ repositories = @{ self = @{ refName = $binding.branch; version = $ExpectedSourceVersion } } } } | ConvertTo-Json -Depth 10 -Compress
+  $run = Invoke-ADOPSRestMethod -Method POST -Uri "$root/pipelines/$($binding.id)/runs?pipelineVersion=$($binding.revision)&api-version=7.1" -Body $body
+  $pipelineId = [string]$binding.id
+  if (-not $run.pipeline -or [string]$run.pipeline.id -cne $pipelineId -or [string]$run.pipeline.revision -cne [string]$binding.revision) {
+    throw 'Pipeline was queued but its response did not match the exact approved definition.'
+  }
+  $runRepositories = Get-OptionalPropertyValue -InputObject (Get-OptionalPropertyValue -InputObject $run -PropertyName 'resources') -PropertyName 'repositories'
+  $runSource = Get-OptionalPropertyValue -InputObject $runRepositories -PropertyName 'self'
+  if ([string](Get-OptionalPropertyValue -InputObject $runSource -PropertyName 'refName') -cne $binding.branch -or
+      [string](Get-OptionalPropertyValue -InputObject $runSource -PropertyName 'version') -cne $ExpectedSourceVersion) {
+    throw 'Pipeline was queued but its response did not verify the exact requested repository ref and source commit.'
+  }
+} else {
+  $pipeline = @(Get-ADOPSPipeline -Project $AdoProject -Name $PipelineName -Organization $AdoOrganization)
+  if ($pipeline.Count -ne 1) { throw "Pipeline '$PipelineName' was not found uniquely in project '$AdoProject'." }
+  $run = Start-ADOPSPipeline -Project $AdoProject -Name $PipelineName -Branch $Branch -Organization $AdoOrganization
+  $pipelineId = [string](Get-OptionalPropertyValue -InputObject $pipeline[0] -PropertyName 'id')
 }
-
-$run = Start-ADOPSPipeline -Project $AdoProject -Name $PipelineName -Branch $Branch -Organization $AdoOrganization
-$pipelineId = [string](Get-OptionalPropertyValue -InputObject $pipeline -PropertyName 'id')
 $runId = [string](Get-OptionalPropertyValue -InputObject $run -PropertyName 'id')
 if (-not $runId) {
   throw "Pipeline '$PipelineName' was started but run id could not be determined."
