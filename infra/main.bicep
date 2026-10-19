@@ -210,3 +210,29 @@ output WEB_APP_ENABLED string = includeWebApp ? 'true' : 'false'
 output webAppDefaultHostName string = includeWebApp ? maesterWebApp!.outputs.webAppDefaultHostName : ''
 output azureRbacScopes string = azureRbacScopes
 output mailRecipient string = mailRecipient
+
+// Exact declared IDs only. Existing identities and resources are never adopted.
+// Child resources of the report-webapp module are deliberately included; keep
+// these expressions aligned with the reviewed module when its declarations change.
+var maesterDeclaredResourceIds = filter([
+  storageAccount.id
+  blobService.id
+  containerArchive.id
+  containerLatest.id
+  storageManagementPolicy.id
+  enableResourceLocks ? storageDeleteLock!.id : ''
+  includeWebApp ? resourceId('Microsoft.Resources/deployments', 'maester-report-webapp') : ''
+  includeWebApp ? resourceId('Microsoft.Web/serverfarms', appServicePlanName) : ''
+  includeWebApp ? resourceId('Microsoft.Web/sites', webAppName) : ''
+  includeWebApp ? resourceId('Microsoft.Web/sites/basicPublishingCredentialsPolicies', webAppName, 'scm') : ''
+  includeWebApp ? resourceId('Microsoft.Web/sites/basicPublishingCredentialsPolicies', webAppName, 'ftp') : ''
+  includeWebApp && enableResourceLocks ? extensionResourceId(resourceId('Microsoft.Web/sites', webAppName), 'Microsoft.Authorization/locks', 'lock-cannot-delete-webapp') : ''
+], id => !empty(id))
+var maesterDeclaredLockIds = filter([
+  enableResourceLocks ? storageDeleteLock!.id : ''
+  includeWebApp && enableResourceLocks ? extensionResourceId(resourceId('Microsoft.Web/sites', webAppName), 'Microsoft.Authorization/locks', 'lock-cannot-delete-webapp') : ''
+], id => !empty(id))
+
+output MAESTER_OWNED_RESOURCE_IDS string = string(maesterDeclaredResourceIds)
+output MAESTER_OWNED_LOCK_IDS string = string(maesterDeclaredLockIds)
+output MAESTER_INFRASTRUCTURE_OWNERSHIP_ID string = contains(resourceGroup().tags, 'maester-ownership-id') ? resourceGroup().tags['maester-ownership-id'] : ''

@@ -2,7 +2,8 @@ Describe 'Maintained PowerShell baseline' {
   It 'enforces PowerShell 7.6 on every owned script and module before execution' {
     $scripts = Get-ChildItem (Join-Path $PSScriptRoot '../scripts') -File |
       Where-Object Extension -In '.ps1', '.psm1'
-    $scripts.Count | Should -Be 15
+    $scripts.Count | Should -Be 16
+    $scripts.Name | Should -Contain 'Run-AzdPostDown.ps1'
     foreach ($file in $scripts) {
       $errors = $null
       $ast = [Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$null, [ref]$errors)

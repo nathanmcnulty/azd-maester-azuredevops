@@ -7,6 +7,8 @@ Describe 'Azure DevOps setup entrypoint and reviewed planner integration (offlin
     $script:entryScripts = Join-Path $script:entryRoot 'scripts'
     Import-Module (Join-Path $script:entryScripts 'vendor/Azd.MaesterHooks/Maester-SetupHelpers.psm1') -Force
     Import-Module (Join-Path $script:entryScripts 'vendor/Azd.MaesterHooks/Maester-ConsentPlan.psm1') -Force
+    Import-Module (Join-Path $script:entryScripts 'vendor/Azd.MaesterHooks/Maester-OwnershipJournal.psm1')
+    $global:AdoEntrypointJournalOpen = (Get-Command Open-MaesterOwnershipJournal).ScriptBlock
     Import-Module (Join-Path $script:entryScripts 'Maester-AdoBootstrap.psm1') -Force
     Import-Module (Join-Path $script:entryScripts 'Maester-SetupConsent.psm1') -Force
     $script:entryAst = [Management.Automation.Language.Parser]::ParseFile((Join-Path $script:entryScripts 'Setup-PostDeploy.ps1'), [ref]$null, [ref]$null)
@@ -29,7 +31,8 @@ Describe 'Azure DevOps setup entrypoint and reviewed planner integration (offlin
     function New-ADOPSPipeline { param($Project, $Name, $Repository, $YamlPath, $Organization) throw 'Unmocked pipeline write tripwire.' }
     function Start-ADOPSPipeline { param($Project, $Name, $Branch, $Organization) throw 'Unmocked pipeline run tripwire.' }
     function Invoke-ADOPSRestMethod { param($Method, $Uri, $Body, $ContentType) throw 'Unmocked ADOPS HTTP tripwire.' }
-    function Invoke-GraphRestRequest { throw 'Unmocked Graph tripwire.' }
+    function Invoke-GraphRestRequest { param($Method, $Uri, $Body, $ContentType) throw 'Unmocked Graph tripwire.' }
+    function Register-MaesterExternalSetupStarted { param($ProjectRoot, $EnvironmentName, $SolutionName, $TenantId, $SubscriptionId, $ResourceGroupName) throw 'Unmocked infrastructure receipt tripwire.' }
 
     function global:az {
       $f = $global:AdoEntrypointFixture; $global:LASTEXITCODE = 0
@@ -62,15 +65,16 @@ Describe 'Azure DevOps setup entrypoint and reviewed planner integration (offlin
         if ($Uri -ceq 'https://graph.microsoft.com/v1.0/applications') { $f.Application = $f.NewApplication; return $f.Application }
         if ($Uri -ceq 'https://graph.microsoft.com/v1.0/servicePrincipals') { $f.Principal = $f.NewPrincipal; return $f.Principal }
         if ($Uri -like '*/federatedIdentityCredentials') { $f.Federations = @($f.NewFederation); return $f.NewFederation }
-        return [pscustomobject]@{ id = 'created-graph-assignment' }
+        $created = $Body | ConvertFrom-Json -AsHashtable; $created.id = 'created-graph-assignment'; return $created
       }
       if ($Uri -like '*/me?*') { return [pscustomobject]@{ id = $f.Operator; userPrincipalName = 'operator@example.test' } }
+      if ($Uri -like "https://graph.microsoft.com/v1.0/applications/$($f.NewApplication.id)[?]*") { return $f.Application }
       if ($Uri.StartsWith('https://graph.microsoft.com/v1.0/applications?')) { return [pscustomobject]@{ value = @($f.Application | Where-Object { $_ }) } }
       if ($Uri.StartsWith('https://graph.microsoft.com/v1.0/servicePrincipals?')) { return [pscustomobject]@{ value = @($f.Principal | Where-Object { $_ }) } }
       if ($Uri -like '*/federatedIdentityCredentials?*') { return [pscustomobject]@{ value = @($f.Federations) } }
       if ($Uri -like '*/appRoleAssignments?*') { return [pscustomobject]@{ value = @() } }
       if ($Uri -like '*/roleManagement/directory/roleAssignments?*') { return [pscustomobject]@{ value = @() } }
-      if ($Uri -like '*/roleManagement/directory/roleDefinitions?*') { return [pscustomobject]@{ value = @([pscustomobject]@{ id = 'teams-reader'; displayName = 'Teams Reader'; isBuiltIn = $true }) } }
+      if ($Uri -like '*/roleManagement/directory/roleDefinitions?*') { return [pscustomobject]@{ value = @([pscustomobject]@{ id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'; displayName = 'Teams Reader'; isBuiltIn = $true }) } }
       throw "Unexpected offline Graph request: $Method $Uri"
     }
     function global:Invoke-AdoEntrypointAdoFixture {
@@ -125,15 +129,15 @@ Describe 'Azure DevOps setup entrypoint and reviewed planner integration (offlin
       Should -Invoke Start-ADOPSPipeline -Times 0 -Exactly
     }
     InModuleScope Maester-AdoBootstrap {
-      function script:Invoke-GraphRestRequest { }
+      function script:Invoke-GraphRestRequest { param($Method, $Uri, $Body, $ContentType) }
       function script:Get-MaesterGraphSetupClientId { $env:MAESTER_SETUP_CLIENT_ID }
     }
-    InModuleScope Maester-SetupConsent { function script:Invoke-GraphRestRequest { } }
+    InModuleScope Maester-SetupConsent { function script:Invoke-GraphRestRequest { param($Method, $Uri, $Body, $ContentType) } }
     $script:grantFixture = Join-Path $TestDrive 'Grant-EntrypointFixture.ps1'
     Set-Content $script:grantFixture @'
 param($TenantId, $PrincipalObjectId, $PermissionProfile, $IncludeMailSend, $IncludeReportSettingsWrite,
   $TargetType, $ExpectedApplicationId, $ExpectedApplicationObjectId, $ExpectedFederatedCredentialIssuer,
-  $ExpectedFederatedCredentialSubject, [switch]$Apply, $ApprovedPlanHash)
+  $ExpectedFederatedCredentialSubject, [switch]$Apply, $ApprovedPlanHash, $OwnershipSession)
 $details = @{ profile = $PermissionProfile; mail = $IncludeMailSend; reportSettingsWrite = $IncludeReportSettingsWrite
   targetType = $TargetType; applicationId = $ExpectedApplicationId; applicationObjectId = $ExpectedApplicationObjectId
   issuer = $ExpectedFederatedCredentialIssuer; subject = $ExpectedFederatedCredentialSubject }
@@ -172,10 +176,12 @@ if ($Apply) {
       } }
       serviceEndpointProjectReferences = @([pscustomobject]@{ projectReference = $project })
     }
-    $app = [pscustomobject]@{ id = '77777777-7777-4777-8777-777777777777'; appId = '66666666-6666-4666-8666-666666666666'; displayName = 'sc-app-maester-offline'; signInAudience = 'AzureADMyOrg'; passwordCredentials = @(); keyCredentials = @() }
+    $app = [pscustomobject]@{ id = '77777777-7777-4777-8777-777777777777'; appId = '66666666-6666-4666-8666-666666666666'; displayName = 'sc-app-maester-offline'; signInAudience = 'AzureADMyOrg'; passwordCredentials = @(); keyCredentials = @(); identifierUris = @(); groupMembershipClaims = $null; web = @{ redirectUris = @(); implicitGrantSettings = @{ enableIdTokenIssuance = $false; enableAccessTokenIssuance = $false } } }
     $principal = [pscustomobject]@{ id = '88888888-8888-4888-8888-888888888888'; appId = $app.appId; displayName = $app.displayName; servicePrincipalType = 'Application'; appOwnerOrganizationId = $tenant; passwordCredentials = @(); keyCredentials = @() }
     $fic = [pscustomobject]@{ id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'; name = 'ado-offline'; issuer = $endpoint.authorization.parameters.workloadIdentityFederationIssuer; subject = $endpoint.authorization.parameters.workloadIdentityFederationSubject; audiences = @('api://AzureADTokenExchange') }
+    $journalRoot = New-Item -ItemType Directory -Path (Join-Path $TestDrive ([guid]::NewGuid().ToString('N')))
     $global:AdoEntrypointFixture = @{
+      OwnershipRoot = $journalRoot.FullName;
       ScriptsRoot = $script:entryScripts; GrantFixture = $script:grantFixture; Tenant = $tenant; Subscription = $subscription; Operator = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
       OrganizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'; Project = $project; Repository = $repo; Endpoint = $endpoint; Application = $app; Principal = $principal; Federations = @($fic)
       NewRepository = $repo; NewEndpoint = $endpoint; NewApplication = $app; NewPrincipal = $principal; NewFederation = $fic
@@ -191,6 +197,17 @@ if ($Apply) {
     $global:AdoEntrypointFixture.NewPipeline = $global:AdoEntrypointFixture.Pipeline | ConvertTo-Json -Depth 20 | ConvertFrom-Json
     $global:LASTEXITCODE = 0
     Mock Import-Module { }
+    Mock Register-MaesterExternalSetupStarted {
+      $f = $global:AdoEntrypointFixture
+      if ($EnvironmentName -cne 'offline' -or $SolutionName -cne 'azure-devops' -or $TenantId -ine $f.Tenant -or $SubscriptionId -ine $f.Subscription -or $ResourceGroupName -cne 'rg-offline') { throw 'Wrong infrastructure setup marker binding.' }
+      $f.Events.Add('ExternalSetupStarted')
+    }
+    Mock Open-MaesterOwnershipJournal {
+      $f = $global:AdoEntrypointFixture
+      if ($f.Events[-1] -cne 'ExternalSetupStarted') { throw 'Setup journal opened before its durable infrastructure setup marker.' }
+      $f.Events.Add('OwnershipJournalOpen')
+      & $global:AdoEntrypointJournalOpen -ProjectRoot $f.OwnershipRoot -Binding $Binding
+    }
     Mock Get-Module { [pscustomobject]@{ Name = $Name } } -ParameterFilter { $ListAvailable -and $Name -in @('ADOPS', 'ExchangeOnlineManagement') }
     Mock Set-Location { }
     Mock Write-Host { }
@@ -265,7 +282,7 @@ if ($Apply) {
     Mock Invoke-RestMethod -ModuleName Maester-SetupConsent {
       param($Method, $Uri, $Body)
       $f = $global:AdoEntrypointFixture; $f.Events.Add("ARM:$Method`:$Uri")
-      if ($Method -ne 'GET') { $f.Writes.Add([pscustomobject]@{ provider = 'ARM'; uri = $Uri; body = $Body }); return [pscustomobject]@{ id = "assignment-$($f.Writes.Count)" } }
+      if ($Method -ne 'GET') { $f.Writes.Add([pscustomobject]@{ provider = 'ARM'; uri = $Uri; body = $Body }); $created = $Body | ConvertFrom-Json -AsHashtable; $created.id = ([string]$Uri).Replace('https://management.azure.com', '').Split('?')[0]; return $created }
       $f.ArmReads++
       if ($f.FullyGranted) {
         $rows = @(
@@ -299,6 +316,8 @@ if ($Apply) {
     @($first.details.adoAccess.operations).Count | Should -Be 2
     Assert-NoAdoEntrypointWrites
     Should -Invoke Connect-ADOPS -Times 0 -Exactly
+    Should -Invoke Register-MaesterExternalSetupStarted -Times 0 -Exactly
+    Should -Invoke Open-MaesterOwnershipJournal -Times 0 -Exactly
   }
 
   It 'loads setup identity bootstrap scope choice and recipient from the verified named environment in a fresh shell' {
@@ -601,6 +620,32 @@ if ($Apply) {
     @($global:AdoEntrypointFixture.Writes | Where-Object provider -eq File).Count | Should -Be 1
   }
 
+  It 'halts the actual script before ADO authorization publication and pipeline actions after an acknowledged grant contradiction: <_>' -ForEach @('Teams', 'Azure') {
+    $f = $global:AdoEntrypointFixture
+    $parameters = @{ IncludeTeams = $true }
+    $plan = Invoke-OfflineAdoEntrypoint $parameters -ActualFile
+    if ($_ -eq 'Teams') {
+      Mock Invoke-GraphRestRequest -ModuleName Maester-SetupConsent {
+        $created = $Body | ConvertFrom-Json -AsHashtable; $created.id = 'wrong-tuple-assignment'; $created.principalId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'; $created
+      } -ParameterFilter { $Method -eq 'POST' -and $Uri -like '*/roleManagement/directory/roleAssignments' }
+    } else {
+      Mock Invoke-RestMethod -ModuleName Maester-SetupConsent {
+        $created = $Body | ConvertFrom-Json -AsHashtable; $created.id = ([string]$Uri).Replace('https://management.azure.com', '').Split('?')[0]; $created.properties.principalId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'; $created
+      } -ParameterFilter { $Method -eq 'PUT' -and $Uri -like '*/Microsoft.Authorization/roleAssignments/*' }
+    }
+    $parameters.Apply = $true; $parameters.ApprovedPlanHash = $plan.planHash
+    { Invoke-OfflineAdoEntrypoint $parameters -ActualFile } | Should -Throw '*identity tuple*'
+    $journal = Get-Content -LiteralPath (Join-Path $f.OwnershipRoot '.azure/offline/maester-setup-ownership.json') -Raw | ConvertFrom-Json -AsHashtable
+    $journal.records[-1].state | Should -BeExactly conflict
+    $journal.records[-1].exactIds.Count | Should -Be 1
+    @($f.Writes | Where-Object provider -in @('ADO', 'Git', 'Pipeline', 'Run')).Count | Should -Be 0
+    Should -Invoke Push-RepositoryFiles -Times 0 -Exactly
+    Should -Invoke New-ADOPSPipeline -Times 0 -Exactly
+    Should -Invoke Start-ADOPSPipeline -Times 0 -Exactly
+    $session = & $global:AdoEntrypointJournalOpen -ProjectRoot $f.OwnershipRoot -Binding $journal.binding
+    $session.Dispose()
+  }
+
   It 'rejects pipeline replacement or mutation after approved grants and before reuse: <_>' -ForEach @('id', 'revision', 'repository', 'yaml', 'branch', 'missing') {
     $f = $global:AdoEntrypointFixture; $f.PipelineMutation = $_
     $parameters = @{ PushPipelineFiles = $false }
@@ -753,4 +798,61 @@ if ($Apply) {
     @($f.Writes | Where-Object { $_.provider -eq 'ADO' -and $_.uri -like '*/pipelinePermissions/*' }).Count | Should -Be 2
     @($f.Writes | Where-Object provider -eq azd).Count | Should -BeGreaterThan 0
   }
+  It 'stops before external writes when the infrastructure setup marker cannot be checkpointed' {
+    $parameters = @{ PushPipelineFiles = $false; ValidatePipelineRun = $false }
+    $plan = Invoke-OfflineAdoEntrypoint $parameters
+    Mock Register-MaesterExternalSetupStarted { throw 'synthetic infrastructure checkpoint failure' }
+    $parameters.Apply = $true; $parameters.ApprovedPlanHash = $plan.planHash
+    { Invoke-OfflineAdoEntrypoint $parameters } | Should -Throw '*infrastructure checkpoint failure*'
+    Assert-NoAdoEntrypointWrites
+    Should -Invoke Open-MaesterOwnershipJournal -Times 0 -Exactly
+  }
+  It 'stops before pipeline creation and manual fallback when publication detects a changed reviewed source binding' {
+    $f = $global:AdoEntrypointFixture; $f.Pipeline = $null; $f.FullyGranted = $true
+    $parameters = @{ ValidatePipelineRun = $false }
+    $plan = Invoke-OfflineAdoEntrypoint $parameters
+    Mock Push-RepositoryFiles {
+      $error = [InvalidOperationException]::new('Repository was expected to be empty but now has a commit.')
+      $error.Data['MaesterPublicationBindingChanged'] = $true
+      throw $error
+    }
+    $parameters.Apply = $true; $parameters.ApprovedPlanHash = $plan.planHash
+    { Invoke-OfflineAdoEntrypoint $parameters } | Should -Throw '*expected to be empty*'
+    Should -Invoke New-ADOPSPipeline -Times 0 -Exactly
+    @($f.Writes | Where-Object provider -in @('File', 'Git', 'Run')).Count | Should -Be 0
+  }
+  It 'retains bootstrap creation receipts when the following stage readback fails and releases the lifecycle lock' {
+    $f = $global:AdoEntrypointFixture
+    $f.Repository = $null; $f.Endpoint = $null; $f.Application = $null; $f.Principal = $null; $f.Federations = @()
+    $plan = Invoke-OfflineAdoEntrypoint @{ Bootstrap = $true }
+    Mock Invoke-MaesterAdoRequest -ModuleName Maester-AdoBootstrap {
+      param($Method = 'GET', $Uri, $Body)
+      if ($Method -eq 'GET' -and $global:AdoEntrypointFixture.Application) { throw 'synthetic bootstrap readback failure' }
+      Invoke-AdoEntrypointAdoFixture -Method $Method -Uri $Uri -Body $Body
+    }
+    { Invoke-OfflineAdoEntrypoint @{ Bootstrap = $true; ApplyBootstrap = $true; ApprovedBootstrapPlanHash = $plan.planHash } } | Should -Throw '*synthetic bootstrap readback failure*'
+    $path = Join-Path $f.OwnershipRoot '.azure/offline/maester-setup-ownership.json'
+    $journal = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json -AsHashtable
+    $journal.records.Count | Should -Be 3
+    $journal.binding.adoOrganizationUrl | Should -BeExactly 'https://dev.azure.com/org'
+    $journal.binding.adoProjectId | Should -BeExactly $f.Project.id
+    @($journal.records | Where-Object state -ne applied).Count | Should -Be 0
+    $session = & $global:AdoEntrypointJournalOpen -ProjectRoot $f.OwnershipRoot -Binding $journal.binding -RequireExisting -LockTimeoutMilliseconds 50
+    try { (Get-MaesterOwnershipJournal -Session $session).records.Count | Should -Be 3 } finally { $session.Dispose() }
+  }
+  It 'checkpoints a new pipeline ID before its exact definition readback fails' {
+    $f = $global:AdoEntrypointFixture; $f.Pipeline = $null; $f.FullyGranted = $true
+    $parameters = @{ PushPipelineFiles = $false; ValidatePipelineRun = $false }
+    $plan = Invoke-OfflineAdoEntrypoint $parameters
+    $f.OnPipelineCreated = { $global:AdoEntrypointFixture.Pipeline.repository.id = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' }
+    $parameters.Apply = $true; $parameters.ApprovedPlanHash = $plan.planHash
+    { Invoke-OfflineAdoEntrypoint $parameters } | Should -Throw '*Existing pipeline does not match*'
+    $journal = Get-Content -LiteralPath (Join-Path $f.OwnershipRoot '.azure/offline/maester-setup-ownership.json') -Raw | ConvertFrom-Json -AsHashtable
+    $pipeline = @($journal.records | Where-Object kind -eq AdoPipeline)
+    $pipeline.Count | Should -Be 1
+    $pipeline[0].state | Should -BeExactly applied
+    $pipeline[0].exactIds.pipelineId | Should -BeExactly '12'
+    @($journal.records | Where-Object kind -in @('AdoRepository','AdoServiceConnection','EntraApplication','EntraServicePrincipal')).Count | Should -Be 0
+  }
+
 }

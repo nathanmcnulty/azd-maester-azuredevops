@@ -30,7 +30,11 @@ param(
   [string]$ExpectedApplicationId,
   [string]$ExpectedApplicationObjectId,
   [string]$ExpectedFederatedCredentialIssuer,
-  [string]$ExpectedFederatedCredentialSubject
+  [string]$ExpectedFederatedCredentialSubject,
+
+  # Optional for independent direct use; azd setup callers must supply their
+  # lifetime-locked journal so each successful grant survives later failures.
+  $OwnershipSession
 )
 
 $TargetType = if ($TargetType -ieq 'FederatedApplication') { 'FederatedApplication' } else { 'ManagedIdentity' }
@@ -346,6 +350,17 @@ $plan = New-MaesterConsentPlan -TenantId $TenantId -PrincipalObjectId $Principal
 if (-not $Apply) { return $plan }
 Assert-MaesterConsentPlanApproval -Plan $plan -ApprovedPlanHash $ApprovedPlanHash
 
+if ($null -ne $OwnershipSession) {
+  Import-Module (Join-Path $PSScriptRoot 'Maester-OwnershipJournal.psm1') -ErrorAction Stop
+  $journal = Get-MaesterOwnershipJournal -Session $OwnershipSession
+  if ($journal.binding.tenantId -ine $TenantId -or
+      ($journal.binding.Contains('runtimePrincipalId') -and $journal.binding.runtimePrincipalId -ine $PrincipalObjectId)) {
+    throw 'The ownership journal does not match this Graph grant target.'
+  }
+  if (@($journal.records | Where-Object { $_.state -in @('pending', 'deleting', 'conflict') }).Count) {
+    throw 'The ownership journal contains unresolved operations. Resolve them before granting more access.'
+  }
+}
 $createdAssignment = $false
 foreach ($role in $requestedRoles) {
   $alreadyAssigned = @($existingAssignmentList | Where-Object {
@@ -362,7 +377,29 @@ foreach ($role in $requestedRoles) {
     appRoleId   = $role.id
   } | ConvertTo-Json
 
-  Invoke-GraphRestRequest -Method POST -Uri "https://graph.microsoft.com/v1.0/servicePrincipals/$PrincipalObjectId/appRoleAssignments" -Body $body -ContentType 'application/json' -TenantId $TenantId | Out-Null
+  $ownershipOperation = $null
+  if ($null -ne $OwnershipSession) {
+    $expected = @{ principalId = $PrincipalObjectId.ToLowerInvariant(); resourceId = ([string]$resourceServicePrincipal.id).ToLowerInvariant(); appRoleId = ([string]$role.id).ToLowerInvariant() }
+    $ownershipOperation = Start-MaesterOwnedOperation -Session $OwnershipSession -Key "graph-role:$($expected.principalId):$($expected.resourceId):$($expected.appRoleId)" `
+      -Kind GraphAppRoleAssignment -Ownership Created -PlanHash $plan.planHash -Expected $expected
+  }
+  $response = Invoke-GraphRestRequest -Method POST -Uri "https://graph.microsoft.com/v1.0/servicePrincipals/$PrincipalObjectId/appRoleAssignments" -Body $body -ContentType 'application/json' -TenantId $TenantId
+  if ($null -ne $OwnershipSession) {
+    # A missing/malformed response remains pending; never discover an ID by name
+    # or automatically repeat the POST after an uncertain outcome.
+    $hasId = $null -ne $response -and $(if ($response -is [System.Collections.IDictionary]) { $response.Contains('id') } else { $null -ne $response.PSObject.Properties['id'] })
+    if (-not $hasId -or [string]::IsNullOrWhiteSpace([string]$response.id)) {
+      throw 'Graph grant returned no exact assignment ID. Ownership remains pending; stop and review the uncertain write.'
+    }
+    $null = Complete-MaesterOwnedOperation -Session $OwnershipSession -OperationId $ownershipOperation.operationId -ExactIds @{ assignmentId = [string]$response.id }
+    foreach ($field in @('principalId', 'resourceId', 'appRoleId')) {
+      $hasField = if ($response -is [System.Collections.IDictionary]) { $response.Contains($field) } else { $null -ne $response.PSObject.Properties[$field] }
+      if (-not $hasField -or [string]$response.$field -ine $expected[$field]) {
+        $null = Set-MaesterOwnedOperationState -Session $OwnershipSession -OperationId $ownershipOperation.operationId -State conflict
+        throw 'Graph grant response identity differs from the approved tuple. The exact returned ID is retained as a conflict; no later grants were attempted.'
+      }
+    }
+  }
   $createdAssignment = $true
 }
 

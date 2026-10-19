@@ -150,8 +150,10 @@ at validation dispatch. The run API is called by exact ID and `pipelineVersion`,
 with the reviewed or newly published immutable repository commit, rather than a
 second name lookup. The emitted UTF-8 file bytes match the reviewed hashes; staged Git blobs are
 checked against raw files, and line-ending/filter transformations fail closed.
-A failed automatic push retains the existing manual-file
-fallback and blocks validation until a fresh review after manual publication. Existing
+An automatic publication failure before the remote push retains the manual-file
+fallback and blocks validation until a fresh review after manual publication.
+Once a push has started, an unknown outcome leaves a pending ownership record
+and stops setup before pipeline creation or validation. Existing
 private project/build artifacts and approved drift isolation remain unchanged.
 
 Azure setup dependencies (Az.Accounts and ADOPS, plus selected Exchange support)
@@ -160,7 +162,9 @@ previous role receipts on idempotent reruns. Canonical Graph assignments and
 ADO pipeline authorization have readback checks; ARM RBAC, Exchange, Teams and
 Easy Auth operation receipts establish accepted write responses, not independently
 verified effective access or propagation. Their `configured` status must not be
-read as a live workload acceptance result. Only repositories created by this
-environment are marked eligible for teardown. No live login, grant, application,
+read as a live workload acceptance result. Each new external object and grant
+now has a durable per-operation ownership receipt; reused parents are preserved.
+See [ownership and interrupted operations](ownership-lifecycle.md) for pending
+outcomes, shared-object conflicts, and publication evidence. No live login, grant, application,
 service connection, pipeline, deployment or mail operation was used to qualify
 this source adoption; those remain explicit operator acceptance gates.

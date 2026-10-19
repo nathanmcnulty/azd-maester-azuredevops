@@ -69,13 +69,12 @@ Describe 'Maester explicit target boundaries (offline)' {
     }
   }
 
-  It 'creates a missing group only after fresh validation despite a different cached/default account' {
+  It 'validates the selected missing group and defers creation to ownership-aware preprovision' {
     & (Join-Path (Split-Path $PSScriptRoot -Parent) 'scripts/Run-AzdPreUp.ps1')
-    $global:MaesterTargetTest.Creates | Should -Be 1
-    $global:MaesterTargetTest.Calls.Count | Should -Be 3
+    $global:MaesterTargetTest.Creates | Should -Be 0
+    $global:MaesterTargetTest.Calls.Count | Should -Be 2
     $global:MaesterTargetTest.Calls[0] | Should -BeLike 'rest *'
     $global:MaesterTargetTest.Calls[1] | Should -BeLike 'group exists *'
-    $global:MaesterTargetTest.Calls[2] | Should -BeLike 'group create *'
   }
 
   It 'respects an environment tenant override and refuses the actual preup write in another tenant' {

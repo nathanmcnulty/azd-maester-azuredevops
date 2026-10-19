@@ -86,10 +86,10 @@ Describe 'Azure DevOps repository ownership' {
     $setup | Should -Match '\$repositoryCreatedByEnvironment\s*=\s*\$true'
   }
 
-  It 'preserves repositories that were not created by the environment' {
-    $cleanup = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'scripts\vendor\Azd.MaesterHooks\Maester-PreDownCleanup.psm1')
-
-    $cleanup | Should -Match '\$adoRepositoryCreated\s*=.*AZDO_REPOSITORY_CREATED'
-    $cleanup | Should -Match 'Preserving Azure DevOps repository'
+  It 'refuses config-only teardown instead of treating a legacy created flag as ownership' {
+    $cleanupPath = Join-Path $repoRoot 'scripts/vendor/Azd.MaesterHooks/Maester-PreDownCleanup.psm1'
+    Import-Module $cleanupPath -ErrorAction Stop
+    { Invoke-MaesterAzureDevOpsPreDownCleanup } | Should -Throw '*bound ownership journal*'
+    (Get-Content $cleanupPath -Raw) | Should -Not -Match 'AZDO_REPOSITORY_CREATED'
   }
 }

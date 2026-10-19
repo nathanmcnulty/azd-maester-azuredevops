@@ -60,18 +60,12 @@ function Invoke-MaesterPreUp {
     throw "Invalid existence response for resource group '$resourceGroupName'."
   }
 
-  $location = Get-ValueFromEnvironmentOrAzd -Name 'AZURE_LOCATION' -AzdValues $envValues
-  if ([string]::IsNullOrWhiteSpace($location)) {
-    throw "AZURE_LOCATION is required to create resource group '$resourceGroupName'."
-  }
+  # Preup is read-only. Creating here would predate the durable fresh-RG
+  # receipt and make a normal azd up indistinguishable from a reused group.
+  # The preprovision hook creates only after the wizard and exact target checks,
+  # through Initialize-MaesterInfrastructureOwnership's pending/HTTP-201 path.
+  Write-Host "Resource group '$resourceGroupName' is absent. Creation is deferred to ownership-aware preprovision."
 
-  Write-Host "Creating resource group '$resourceGroupName' in '$location'..."
-  & az group create --name $resourceGroupName --location $location --subscription $subscriptionId --output none
-  if ($LASTEXITCODE -ne 0) {
-    throw "Failed to create resource group '$resourceGroupName'."
-  }
-
-  Write-Host "Created resource group '$resourceGroupName'."
 }
 
 Export-ModuleMember -Function Invoke-MaesterPreUp
