@@ -10,13 +10,16 @@ Run the offline suite from the repository root in PowerShell 7.6 or newer:
 ```powershell
 $PSVersionTable.PSVersion
 Install-Module Pester -RequiredVersion 6.2.0 -Scope CurrentUser -Force
+Install-Module Microsoft.Graph.Authentication -RequiredVersion 2.41.0 -Scope CurrentUser -Force
 Import-Module Pester -RequiredVersion 6.2.0 -Force
 (Get-Module Pester).Version
 Invoke-Pester -Path ./tests -CI
 ```
 
 CI installs and explicitly imports Pester 6.2.0 and records both selected
-versions. The pipeline runner uses the separate hash-verified runtime package
+versions. Setup-session boundary tests load the actual Graph Authentication 2.41.0
+SDK but mock every authentication/request boundary. CI obtains that package using
+the existing SHA-256-verified runtime lock installer; it never signs in. The pipeline runner uses the separate hash-verified runtime package
 lock, which already selects Pester 6.2.0.
 
 The generated Azure DevOps pipeline checks its agent's `pwsh` version before

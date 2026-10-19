@@ -5,7 +5,7 @@ Deploys a production-style Maester monitoring solution using Azure DevOps Pipeli
 - Azure DevOps Azure Repos Git repository + YAML pipeline
 - Azure DevOps Azure Resource Manager service connection using workload identity federation (no secrets/certificates)
 - Entra workload identity app + federated credential automation
-- Managed identity style permissions (Graph app roles + optional Exchange/Teams/Azure)
+- Federated application permissions (Graph app roles + optional Exchange/Teams/Azure)
 - Storage-backed report history (`archive`) and latest pointer (`latest/latest.html`)
 - Optional App Service + Easy Auth portal in WebApp mode
 
@@ -19,9 +19,16 @@ After `azd init -t nathanmcnulty/azd-maester-azuredevops`, run from the template
 
 `azd up`
 
+Before setup, an administrator must prepare the dedicated setup public client.
+Postprovision is read-only by default. Fresh runtime identity creation uses
+separately reviewed bootstrap stages; access changes require a fresh aggregate
+plan hash. Follow [setup and consent](docs/setup-consent.md) for the complete
+scope union, bootstrap and apply commands. Existing runtime identities keep
+workload federation and do not receive permission-management authority.
+
 ## Versioning and shared components
 
-This template uses the stable Maester module `2.2.0`. Shared azd hooks,
+This template uses the stable Maester module `2.3.0`. Shared azd hooks,
 permission setup, and the optional report web app are vendored from
 `nathanmcnulty/azd-reference` and recorded in `azd-components.lock.json`.
 
@@ -35,29 +42,26 @@ During interactive `azd up`, the preprovision wizard prompts for:
 - Security group object ID (required when Web App is enabled)
 - Azure RBAC scopes (when Azure is enabled)
 - Azure DevOps organization/project (required)
-- Optional mail recipient
+- Full assessment [Y/n], with separate default-off mail and report-write choices
+- Dedicated setup client/account and optional mail recipient
 
 For non-interactive runs (`azd up --no-prompt`), if `AZURE_RESOURCE_GROUP` is set, `preup` creates it automatically when missing.
 
 ## What setup does
 
-- Resolves azd environment values through the preprovision wizard and provisions Azure infra.
-- Before Azure provisioning, verifies that the selected Azure DevOps project is accessible and that a missing repository can be created.
-- Creates or reuses Azure Repos repository (default enabled).
-- Creates or reuses Azure DevOps service connection with workload identity federation (`CreationMode=Manual`).
-- Creates or reuses Entra app/service principal and federated credential.
-- Finalizes service connection with the federated app identity.
-- Grants Graph app roles required by Maester (`Minimal` or `Extended` profile).
-- Optionally grants:
-  - Exchange `Exchange.ManageAsApp` + Exchange RBAC `View-Only Configuration`
-  - Entra `Teams Reader`
-  - Azure RBAC `Reader` at selected scopes
-- Renders and pushes pipeline files to Azure Repos.
-- Creates or reuses pipeline and validates first run (default enabled).
+- Provisions Azure resources after direct selected-tenant/subscription guards
+- Prints read-only bootstrap or access plans before setup writes
+- Preserves federated runtime identity and exact repository/endpoint ownership
+- Separately approves runtime app/SP creation, resolved FIC trust and endpoint binding
+- Separately approves Full27, Minimal8 or explicit legacy Extended19 Graph reads
+- Keeps mail, report-setting writes, Exchange, Teams, Azure and Easy Auth optional
+- Revalidates the aggregate delta and rendered source hashes before applying
+- Pushes reviewed runtime files and creates/reuses the exact selected pipeline
+- Preserves existing private reports and default-off isolated approved drift
 
-When an existing empty repository is reused, teardown preserves that repository
-and its files. A repository created by the current environment is tracked and
-removed by `azd down`.
+Existing repositories are preserved by teardown; only repositories created by
+this environment are marked for removal. Read [the staged setup workflow](docs/setup-consent.md)
+and [Maester 2.3.0 runtime evidence](docs/runtime-maester-230.md) before applying.
 
 ## Permission lifecycle
 

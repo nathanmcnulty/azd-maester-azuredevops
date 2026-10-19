@@ -9,8 +9,7 @@ subscription and refreshes Az PowerShell with it when available. Otherwise,
 setup retains a matching cached Az context or uses the normal interactive
 Az PowerShell login. Before discovering deployment targets, setup verifies
 that the resulting Az context matches the selected subscription and tenant.
-When the tenant was omitted, setup infers it only from a confirmed context
-for the selected subscription. An unconfirmed context stops setup.
+An explicit tenant is required before ARM validation; setup does not infer an intended tenant from an ambient session. An unconfirmed context stops setup.
 
 This check does not synchronize the tools' credential stores or resolve an
 expired token in an earlier Azure Developer CLI provisioning stage. If that
@@ -23,3 +22,5 @@ and tenant, and redacted error code/message. Do not include access tokens,
 credential-cache files, or unredacted authentication logs. The post-provision
 context regression tests provide offline boundary evidence; they do not
 prove the reported MFA failure is resolved.
+
+Microsoft Graph delegated setup uses the separately configured tenant-owned public client and canonical exact-tenant/client/account/scope coordinator. Azure CLI Graph tokens and shared SDK clients are not substitutes. See [setup consent](setup-consent.md) for the complete selected union and staged runtime bootstrap.

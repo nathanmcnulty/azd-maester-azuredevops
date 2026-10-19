@@ -25,6 +25,9 @@ variables:
   SubscriptionId: '__SUBSCRIPTION_ID__'
   ClientId: '__CLIENT_ID__'
   MailRecipient: '__MAIL_RECIPIENT__'
+  PermissionProfile: '__PERMISSION_PROFILE__'
+  IncludeMailSend: '__INCLUDE_MAIL_SEND__'
+  IncludeReportSettingsWrite: '__INCLUDE_REPORT_SETTINGS_WRITE__'
   FailOnTestFailures: '__FAIL_ON_TEST_FAILURES__'
 
 jobs:
@@ -66,6 +69,9 @@ jobs:
         -SubscriptionId "$(SubscriptionId)"
         -ClientId "$(ClientId)"
         -MailRecipient "$(MailRecipient)"
+        -PermissionProfile "$(PermissionProfile)"
+        -IncludeMailSend $(IncludeMailSend)
+        -IncludeReportSettingsWrite $(IncludeReportSettingsWrite)
         -FailOnTestFailures $(FailOnTestFailures)
 
   - publish: $(System.DefaultWorkingDirectory)/test-results
@@ -77,6 +83,6 @@ jobs:
     displayName: Publish Pester Test Results
     condition: always()
     inputs:
-      testResultsFormat: NUnit
+      testResultsFormat: JUnit
       testResultsFiles: '**/test-results.xml'
       failTaskOnFailedTests: false

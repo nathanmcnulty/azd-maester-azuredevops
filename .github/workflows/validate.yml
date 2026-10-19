@@ -27,6 +27,14 @@ jobs:
           if ($PSVersionTable.PSVersion -lt [version]'7.6') { throw 'PowerShell 7.6 or newer is required.' }
           Write-Host "Validation PowerShell: $($PSVersionTable.PSVersion)"
           Install-Module Pester -RequiredVersion 6.2.0 -Scope CurrentUser -Force
+          $runtimeLock = Get-Content ./runtime-packages.lock.json -Raw | ConvertFrom-Json
+          $testPackages = @($runtimeLock.packages | Where-Object name -eq 'Microsoft.Graph.Authentication')
+          if ($testPackages.Count -ne 1) { throw 'Exactly one locked Graph authentication package is required for setup-session tests.' }
+          $testLock = Join-Path $env:RUNNER_TEMP 'maester-setup-test-packages.lock.json'
+          @{ schemaVersion = 1; packages = $testPackages } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $testLock -Encoding utf8
+          $testModules = Join-Path $env:RUNNER_TEMP 'maester-setup-test-modules'
+          ./scripts/Install-LockedModules.ps1 -LockPath $testLock -DestinationRoot $testModules
+          "PSModulePath=$testModules$([IO.Path]::PathSeparator)$env:PSModulePath" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Run repository tests
         run: |
           Import-Module Pester -RequiredVersion 6.2.0 -Force

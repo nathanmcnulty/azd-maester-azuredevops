@@ -17,6 +17,10 @@ version, a new package hash, and an import test before promotion.
 
 For failed pipeline runs, validation accepts Maester findings only when the
 runner is the sole failed task, both report publishers succeed, and the
-`TestResults` artifact exists. The NUnit publisher does not fail its task on
+`TestResults` artifact exists. The JUnit publisher does not fail its task on
 test findings; the runner emits the specific finding marker after writing the
-report and NUnit result. Missing or failed artifacts remain validation errors.
+report and JUnit result. Missing or failed artifacts remain validation errors.
+
+Maester 2.3.0 assessment health, profile coverage, explicit optional capabilities
+and offline/live verification boundaries are documented in
+[runtime qualification](runtime-maester-230.md).

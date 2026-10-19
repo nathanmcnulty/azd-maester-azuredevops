@@ -3,8 +3,118 @@
   "solutionId": "azd-maester-azuredevops",
   "status": "implemented",
   "coverage": "partial",
-  "reviewedOn": "2026-10-07",
+  "reviewedOn": "2026-10-19",
   "requirements": [
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "AuditLog.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "full",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Full. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "DeviceManagementConfiguration.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "full",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Full, Extended. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "DeviceManagementManagedDevices.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "full",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Full, Extended. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "DeviceManagementRBAC.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "full",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Full, Extended. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "DeviceManagementServiceConfig.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "full",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Full, Extended. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
+        }
+      ]
+    },
     {
       "resource": "https://graph.microsoft.com",
       "kind": "application",
@@ -14,12 +124,16 @@
       "feature": "minimal",
       "defaultEnabled": true,
       "scope": "tenant",
-      "rationale": "Roles in the Minimal profile, also included by Extended.",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Minimal, Full, Extended. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
       "evidenceState": "code",
       "evidence": [
         {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "c15f59ad9a997278332cba8a80cf4f28c12b7321cf2f95144bd80510c43b9279"
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
         }
       ]
     },
@@ -32,12 +146,38 @@
       "feature": "minimal",
       "defaultEnabled": true,
       "scope": "tenant",
-      "rationale": "Roles in the Minimal profile, also included by Extended.",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Minimal, Full, Extended. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
       "evidenceState": "code",
       "evidence": [
         {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "c15f59ad9a997278332cba8a80cf4f28c12b7321cf2f95144bd80510c43b9279"
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "EntitlementManagement.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "full",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Full. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
         }
       ]
     },
@@ -50,12 +190,104 @@
       "feature": "minimal",
       "defaultEnabled": true,
       "scope": "tenant",
-      "rationale": "Roles in the Minimal profile, also included by Extended.",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Minimal, Full, Extended. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
       "evidenceState": "code",
       "evidence": [
         {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "c15f59ad9a997278332cba8a80cf4f28c12b7321cf2f95144bd80510c43b9279"
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "NetworkAccess.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "full",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Full. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "OnPremDirectorySynchronization.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "full",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Full. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "OrgSettings-AppsAndServices.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "full",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Full. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "OrgSettings-Forms.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "full",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Full. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
         }
       ]
     },
@@ -68,12 +300,16 @@
       "feature": "minimal",
       "defaultEnabled": true,
       "scope": "tenant",
-      "rationale": "Roles in the Minimal profile, also included by Extended.",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Minimal, Full, Extended. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
       "evidenceState": "code",
       "evidence": [
         {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "c15f59ad9a997278332cba8a80cf4f28c12b7321cf2f95144bd80510c43b9279"
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
         }
       ]
     },
@@ -86,30 +322,82 @@
       "feature": "minimal",
       "defaultEnabled": true,
       "scope": "tenant",
-      "rationale": "Roles in the Minimal profile, also included by Extended.",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Minimal, Full, Extended. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
       "evidenceState": "code",
       "evidence": [
         {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "c15f59ad9a997278332cba8a80cf4f28c12b7321cf2f95144bd80510c43b9279"
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
         }
       ]
     },
     {
       "resource": "https://graph.microsoft.com",
       "kind": "application",
-      "permission": "RoleManagement.Read.All",
+      "permission": "Policy.Read.DeviceConfiguration",
       "principal": "workload",
       "phase": "runtime",
-      "feature": "minimal",
+      "feature": "full",
       "defaultEnabled": true,
       "scope": "tenant",
-      "rationale": "Roles in the Minimal profile, also included by Extended.",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Full. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
       "evidenceState": "code",
       "evidence": [
         {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "c15f59ad9a997278332cba8a80cf4f28c12b7321cf2f95144bd80510c43b9279"
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "PrivilegedAccess.Read.AzureAD",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "legacy-extended",
+      "defaultEnabled": false,
+      "scope": "tenant",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Extended. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "ReportSettings.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "full",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Full, Extended. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
         }
       ]
     },
@@ -122,12 +410,192 @@
       "feature": "minimal",
       "defaultEnabled": true,
       "scope": "tenant",
-      "rationale": "Roles in the Minimal profile, also included by Extended.",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Minimal, Full, Extended. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
       "evidenceState": "code",
       "evidence": [
         {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "c15f59ad9a997278332cba8a80cf4f28c12b7321cf2f95144bd80510c43b9279"
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "RoleEligibilitySchedule.Read.Directory",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "full",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Full, Extended. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "RoleManagement.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "minimal",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Minimal, Full, Extended. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "RoleManagementAlert.Read.Directory",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "full",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Full. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "SecurityIdentitiesHealth.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "full",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Full, Extended. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "SecurityIdentitiesSensors.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "full",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Full, Extended. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "SharePointTenantSettings.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "full",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Full, Extended. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "Sites.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "full",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Full. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "ThreatHunting.Read.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "full",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Full, Extended. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
         }
       ]
     },
@@ -140,282 +608,16 @@
       "feature": "minimal",
       "defaultEnabled": true,
       "scope": "tenant",
-      "rationale": "Roles in the Minimal profile, also included by Extended.",
+      "rationale": "Maester 2.3.0 reviewed assessment application role in Minimal, Full, Extended. Full is the new interactive setup default; legacy Extended remains distinct. Only a freshly reviewed missing grant is applied to the selected federated Application service principal; existing grants are preserved.",
       "evidenceState": "code",
       "evidence": [
         {
-          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "c15f59ad9a997278332cba8a80cf4f28c12b7321cf2f95144bd80510c43b9279"
-        }
-      ]
-    },
-    {
-      "resource": "https://graph.microsoft.com",
-      "kind": "application",
-      "permission": "DeviceManagementConfiguration.Read.All",
-      "principal": "workload",
-      "phase": "runtime",
-      "feature": "extended",
-      "defaultEnabled": true,
-      "scope": "tenant",
-      "rationale": "Additional roles in the default Extended helper profile; exclude extended to inspect Minimal.",
-      "evidenceState": "code",
-      "evidence": [
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "c15f59ad9a997278332cba8a80cf4f28c12b7321cf2f95144bd80510c43b9279"
-        }
-      ]
-    },
-    {
-      "resource": "https://graph.microsoft.com",
-      "kind": "application",
-      "permission": "DeviceManagementServiceConfig.Read.All",
-      "principal": "workload",
-      "phase": "runtime",
-      "feature": "extended",
-      "defaultEnabled": true,
-      "scope": "tenant",
-      "rationale": "Additional roles in the default Extended helper profile; exclude extended to inspect Minimal.",
-      "evidenceState": "code",
-      "evidence": [
-        {
-          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "c15f59ad9a997278332cba8a80cf4f28c12b7321cf2f95144bd80510c43b9279"
-        }
-      ]
-    },
-    {
-      "resource": "https://graph.microsoft.com",
-      "kind": "application",
-      "permission": "DeviceManagementManagedDevices.Read.All",
-      "principal": "workload",
-      "phase": "runtime",
-      "feature": "extended",
-      "defaultEnabled": true,
-      "scope": "tenant",
-      "rationale": "Additional roles in the default Extended helper profile; exclude extended to inspect Minimal.",
-      "evidenceState": "code",
-      "evidence": [
-        {
-          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "c15f59ad9a997278332cba8a80cf4f28c12b7321cf2f95144bd80510c43b9279"
-        }
-      ]
-    },
-    {
-      "resource": "https://graph.microsoft.com",
-      "kind": "application",
-      "permission": "DeviceManagementRBAC.Read.All",
-      "principal": "workload",
-      "phase": "runtime",
-      "feature": "extended",
-      "defaultEnabled": true,
-      "scope": "tenant",
-      "rationale": "Additional roles in the default Extended helper profile; exclude extended to inspect Minimal.",
-      "evidenceState": "code",
-      "evidence": [
-        {
-          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "c15f59ad9a997278332cba8a80cf4f28c12b7321cf2f95144bd80510c43b9279"
-        }
-      ]
-    },
-    {
-      "resource": "https://graph.microsoft.com",
-      "kind": "application",
-      "permission": "PrivilegedAccess.Read.AzureAD",
-      "principal": "workload",
-      "phase": "runtime",
-      "feature": "extended",
-      "defaultEnabled": true,
-      "scope": "tenant",
-      "rationale": "Additional roles in the default Extended helper profile; exclude extended to inspect Minimal.",
-      "evidenceState": "code",
-      "evidence": [
-        {
-          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "c15f59ad9a997278332cba8a80cf4f28c12b7321cf2f95144bd80510c43b9279"
-        }
-      ]
-    },
-    {
-      "resource": "https://graph.microsoft.com",
-      "kind": "application",
-      "permission": "ReportSettings.Read.All",
-      "principal": "workload",
-      "phase": "runtime",
-      "feature": "extended",
-      "defaultEnabled": true,
-      "scope": "tenant",
-      "rationale": "Additional roles in the default Extended helper profile; exclude extended to inspect Minimal.",
-      "evidenceState": "code",
-      "evidence": [
-        {
-          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "c15f59ad9a997278332cba8a80cf4f28c12b7321cf2f95144bd80510c43b9279"
-        }
-      ]
-    },
-    {
-      "resource": "https://graph.microsoft.com",
-      "kind": "application",
-      "permission": "RoleEligibilitySchedule.Read.Directory",
-      "principal": "workload",
-      "phase": "runtime",
-      "feature": "extended",
-      "defaultEnabled": true,
-      "scope": "tenant",
-      "rationale": "Additional roles in the default Extended helper profile; exclude extended to inspect Minimal.",
-      "evidenceState": "code",
-      "evidence": [
-        {
-          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "c15f59ad9a997278332cba8a80cf4f28c12b7321cf2f95144bd80510c43b9279"
-        }
-      ]
-    },
-    {
-      "resource": "https://graph.microsoft.com",
-      "kind": "application",
-      "permission": "SecurityIdentitiesHealth.Read.All",
-      "principal": "workload",
-      "phase": "runtime",
-      "feature": "extended",
-      "defaultEnabled": true,
-      "scope": "tenant",
-      "rationale": "Additional roles in the default Extended helper profile; exclude extended to inspect Minimal.",
-      "evidenceState": "code",
-      "evidence": [
-        {
-          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "c15f59ad9a997278332cba8a80cf4f28c12b7321cf2f95144bd80510c43b9279"
-        }
-      ]
-    },
-    {
-      "resource": "https://graph.microsoft.com",
-      "kind": "application",
-      "permission": "SecurityIdentitiesSensors.Read.All",
-      "principal": "workload",
-      "phase": "runtime",
-      "feature": "extended",
-      "defaultEnabled": true,
-      "scope": "tenant",
-      "rationale": "Additional roles in the default Extended helper profile; exclude extended to inspect Minimal.",
-      "evidenceState": "code",
-      "evidence": [
-        {
-          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "c15f59ad9a997278332cba8a80cf4f28c12b7321cf2f95144bd80510c43b9279"
-        }
-      ]
-    },
-    {
-      "resource": "https://graph.microsoft.com",
-      "kind": "application",
-      "permission": "SharePointTenantSettings.Read.All",
-      "principal": "workload",
-      "phase": "runtime",
-      "feature": "extended",
-      "defaultEnabled": true,
-      "scope": "tenant",
-      "rationale": "Additional roles in the default Extended helper profile; exclude extended to inspect Minimal.",
-      "evidenceState": "code",
-      "evidence": [
-        {
-          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "c15f59ad9a997278332cba8a80cf4f28c12b7321cf2f95144bd80510c43b9279"
-        }
-      ]
-    },
-    {
-      "resource": "https://graph.microsoft.com",
-      "kind": "application",
-      "permission": "ThreatHunting.Read.All",
-      "principal": "workload",
-      "phase": "runtime",
-      "feature": "extended",
-      "defaultEnabled": true,
-      "scope": "tenant",
-      "rationale": "Additional roles in the default Extended helper profile; exclude extended to inspect Minimal.",
-      "evidenceState": "code",
-      "evidence": [
-        {
-          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "c15f59ad9a997278332cba8a80cf4f28c12b7321cf2f95144bd80510c43b9279"
-        }
-      ]
-    },
-    {
-      "resource": "https://graph.microsoft.com",
-      "kind": "delegated",
-      "permission": "Application.Read.All",
-      "principal": "deployment-operator",
-      "phase": "deployment",
-      "feature": "core",
-      "defaultEnabled": true,
-      "scope": "tenant",
-      "rationale": "Recorded hook context required for app-role assignment.",
-      "evidenceState": "code",
-      "evidence": [
-        {
-          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "c15f59ad9a997278332cba8a80cf4f28c12b7321cf2f95144bd80510c43b9279"
-        }
-      ]
-    },
-    {
-      "resource": "https://graph.microsoft.com",
-      "kind": "delegated",
-      "permission": "AppRoleAssignment.ReadWrite.All",
-      "principal": "deployment-operator",
-      "phase": "deployment",
-      "feature": "core",
-      "defaultEnabled": true,
-      "scope": "tenant",
-      "rationale": "Recorded hook context required for app-role assignment.",
-      "evidenceState": "code",
-      "evidence": [
-        {
-          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "c15f59ad9a997278332cba8a80cf4f28c12b7321cf2f95144bd80510c43b9279"
-        }
-      ]
-    },
-    {
-      "resource": "https://graph.microsoft.com",
-      "kind": "delegated",
-      "permission": "Directory.Read.All",
-      "principal": "deployment-operator",
-      "phase": "deployment",
-      "feature": "core",
-      "defaultEnabled": true,
-      "scope": "tenant",
-      "rationale": "Recorded hook context required for app-role assignment.",
-      "evidenceState": "code",
-      "evidence": [
-        {
-          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "c15f59ad9a997278332cba8a80cf4f28c12b7321cf2f95144bd80510c43b9279"
-        }
-      ]
-    },
-    {
-      "resource": "https://graph.microsoft.com",
-      "kind": "delegated",
-      "permission": "Directory.AccessAsUser.All",
-      "principal": "deployment-operator",
-      "phase": "deployment",
-      "feature": "core",
-      "defaultEnabled": true,
-      "scope": "tenant",
-      "rationale": "Recorded hook context required for app-role assignment.",
-      "evidenceState": "code",
-      "evidence": [
-        {
-          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "c15f59ad9a997278332cba8a80cf4f28c12b7321cf2f95144bd80510c43b9279"
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
         }
       ]
     },
@@ -428,29 +630,268 @@
       "feature": "email",
       "defaultEnabled": false,
       "scope": "tenant",
-      "rationale": "The hook requests Mail.Send when MAIL_RECIPIENT is configured; this is distinct from mailbox-scoped Exchange RBAC.",
+      "rationale": "Mail.Send requires explicit IncludeMailSend or INCLUDE_MAIL_SEND=true capability selection and exact consent-plan approval. MAIL_RECIPIENT alone does not select this permission. Existing assignments are preserved.",
       "evidenceState": "code",
       "evidence": [
         {
-          "path": "scripts/Setup-PostDeploy.ps1",
-          "sha256": "88c85ba77b964895841890e27c13c1cb10dcd5d67b1980cf7d87cc5b53337ce0"
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "c15f59ad9a997278332cba8a80cf4f28c12b7321cf2f95144bd80510c43b9279"
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
+        },
+        {
+          "path": "scripts/Setup-PostDeploy.ps1",
+          "sha256": "1d6c23b4a06d2d99d721b720f2dc60fa6f8bc7e253474d8256e5fb836dd232d6"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "application",
+      "permission": "ReportSettings.ReadWrite.All",
+      "principal": "workload",
+      "phase": "runtime",
+      "feature": "report-settings-write",
+      "defaultEnabled": false,
+      "scope": "tenant",
+      "rationale": "ReportSettings.ReadWrite.All requires separate IncludeReportSettingsWrite or INCLUDE_REPORT_SETTINGS_WRITE=true capability selection and exact consent-plan approval. It is excluded from Full, Minimal, and legacy Extended. Existing assignments are preserved.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
+          "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
+          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
+        },
+        {
+          "path": "scripts/Setup-PostDeploy.ps1",
+          "sha256": "1d6c23b4a06d2d99d721b720f2dc60fa6f8bc7e253474d8256e5fb836dd232d6"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "delegated",
+      "permission": "AppRoleAssignment.ReadWrite.All",
+      "principal": "deployment-operator",
+      "phase": "deployment",
+      "feature": "core",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Apply only explicitly approved missing federated Application service-principal application-role assignments. These delegated scopes belong to the separately administrator-bootstrapped public setup client, never to the federated runtime Application service principal. Selection does not approve any consent expansion.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-SetupHelpers.psm1",
+          "sha256": "11acfa972e1734e014d760f4204949708f0e9b41c89091637a08b38627929c23"
+        },
+        {
+          "path": "scripts/Setup-PostDeploy.ps1",
+          "sha256": "1d6c23b4a06d2d99d721b720f2dc60fa6f8bc7e253474d8256e5fb836dd232d6"
+        },
+        {
+          "path": "scripts/Maester-SetupConsent.psm1",
+          "sha256": "d1a0f8789f0dc66facdcfcf6c522beea42947b1b51fb431c8431f526d460a9e9"
+        },
+        {
+          "path": "scripts/Maester-AdoBootstrap.psm1",
+          "sha256": "4d1b048a712bebdecb417363278d2784f607628d8ece4895574b46f4532ebb6b"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "delegated",
+      "permission": "Application.Read.All",
+      "principal": "deployment-operator",
+      "phase": "deployment",
+      "feature": "core",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Read the selected tenant-owned setup client, target federated Application service principal, and resource application roles. These delegated scopes belong to the separately administrator-bootstrapped public setup client, never to the federated runtime Application service principal. Selection does not approve any consent expansion.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-SetupHelpers.psm1",
+          "sha256": "11acfa972e1734e014d760f4204949708f0e9b41c89091637a08b38627929c23"
+        },
+        {
+          "path": "scripts/Setup-PostDeploy.ps1",
+          "sha256": "1d6c23b4a06d2d99d721b720f2dc60fa6f8bc7e253474d8256e5fb836dd232d6"
+        },
+        {
+          "path": "scripts/Maester-SetupConsent.psm1",
+          "sha256": "d1a0f8789f0dc66facdcfcf6c522beea42947b1b51fb431c8431f526d460a9e9"
+        },
+        {
+          "path": "scripts/Maester-AdoBootstrap.psm1",
+          "sha256": "4d1b048a712bebdecb417363278d2784f607628d8ece4895574b46f4532ebb6b"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "delegated",
+      "permission": "Application.ReadWrite.All",
+      "principal": "deployment-operator",
+      "phase": "deployment",
+      "feature": "runtime-bootstrap-or-easyauth",
+      "defaultEnabled": false,
+      "scope": "tenant",
+      "rationale": "Selected for the explicit runtime-application bootstrap workflow or optional Easy Auth. The complete selected setup scope union is requested once upfront and reused on subsequent staged passes. Bootstrap creates only exactly reviewed app/SP/endpoint objects; a FIC with newly resolved issuer/subject requires fresh plan approval. This scope belongs only to the separately administrator-prepared public setup client, never to the federated runtime application.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-SetupHelpers.psm1",
+          "sha256": "11acfa972e1734e014d760f4204949708f0e9b41c89091637a08b38627929c23"
+        },
+        {
+          "path": "scripts/Setup-PostDeploy.ps1",
+          "sha256": "1d6c23b4a06d2d99d721b720f2dc60fa6f8bc7e253474d8256e5fb836dd232d6"
+        },
+        {
+          "path": "scripts/Maester-SetupConsent.psm1",
+          "sha256": "d1a0f8789f0dc66facdcfcf6c522beea42947b1b51fb431c8431f526d460a9e9"
+        },
+        {
+          "path": "scripts/Maester-AdoBootstrap.psm1",
+          "sha256": "4d1b048a712bebdecb417363278d2784f607628d8ece4895574b46f4532ebb6b"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "delegated",
+      "permission": "DelegatedPermissionGrant.ReadWrite.All",
+      "principal": "deployment-operator",
+      "phase": "deployment",
+      "feature": "webapp",
+      "defaultEnabled": false,
+      "scope": "tenant",
+      "rationale": "Selected only with the optional Web App to inspect and apply the reviewed tenant-wide Easy Auth delegated-scope delta. These delegated scopes belong to the separately administrator-bootstrapped public setup client, never to the federated runtime Application service principal. Selection does not approve any consent expansion.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-SetupHelpers.psm1",
+          "sha256": "11acfa972e1734e014d760f4204949708f0e9b41c89091637a08b38627929c23"
+        },
+        {
+          "path": "scripts/Setup-PostDeploy.ps1",
+          "sha256": "1d6c23b4a06d2d99d721b720f2dc60fa6f8bc7e253474d8256e5fb836dd232d6"
+        },
+        {
+          "path": "scripts/Maester-SetupConsent.psm1",
+          "sha256": "d1a0f8789f0dc66facdcfcf6c522beea42947b1b51fb431c8431f526d460a9e9"
+        },
+        {
+          "path": "scripts/Maester-AdoBootstrap.psm1",
+          "sha256": "4d1b048a712bebdecb417363278d2784f607628d8ece4895574b46f4532ebb6b"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "delegated",
+      "permission": "Directory.Read.All",
+      "principal": "deployment-operator",
+      "phase": "deployment",
+      "feature": "core",
+      "defaultEnabled": true,
+      "scope": "tenant",
+      "rationale": "Read tenant and directory identity data for the bound setup session and selected resources. These delegated scopes belong to the separately administrator-bootstrapped public setup client, never to the federated runtime Application service principal. Selection does not approve any consent expansion. Also supports direct unifiedRoleAssignment inventory for bootstrap review; the operator must hold a supported Entra directory role.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-SetupHelpers.psm1",
+          "sha256": "11acfa972e1734e014d760f4204949708f0e9b41c89091637a08b38627929c23"
+        },
+        {
+          "path": "scripts/Setup-PostDeploy.ps1",
+          "sha256": "1d6c23b4a06d2d99d721b720f2dc60fa6f8bc7e253474d8256e5fb836dd232d6"
+        },
+        {
+          "path": "scripts/Maester-SetupConsent.psm1",
+          "sha256": "d1a0f8789f0dc66facdcfcf6c522beea42947b1b51fb431c8431f526d460a9e9"
+        },
+        {
+          "path": "scripts/Maester-AdoBootstrap.psm1",
+          "sha256": "4d1b048a712bebdecb417363278d2784f607628d8ece4895574b46f4532ebb6b"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "delegated",
+      "permission": "Group.Read.All",
+      "principal": "deployment-operator",
+      "phase": "deployment",
+      "feature": "webapp",
+      "defaultEnabled": false,
+      "scope": "tenant",
+      "rationale": "Selected only with the optional Web App to resolve and verify its exact security group before planning. These delegated scopes belong to the separately administrator-bootstrapped public setup client, never to the federated runtime Application service principal. Selection does not approve any consent expansion.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-SetupHelpers.psm1",
+          "sha256": "11acfa972e1734e014d760f4204949708f0e9b41c89091637a08b38627929c23"
+        },
+        {
+          "path": "scripts/Setup-PostDeploy.ps1",
+          "sha256": "1d6c23b4a06d2d99d721b720f2dc60fa6f8bc7e253474d8256e5fb836dd232d6"
+        },
+        {
+          "path": "scripts/Maester-SetupConsent.psm1",
+          "sha256": "d1a0f8789f0dc66facdcfcf6c522beea42947b1b51fb431c8431f526d460a9e9"
+        },
+        {
+          "path": "scripts/Maester-AdoBootstrap.psm1",
+          "sha256": "4d1b048a712bebdecb417363278d2784f607628d8ece4895574b46f4532ebb6b"
+        }
+      ]
+    },
+    {
+      "resource": "https://graph.microsoft.com",
+      "kind": "delegated",
+      "permission": "RoleManagement.ReadWrite.Directory",
+      "principal": "deployment-operator",
+      "phase": "deployment",
+      "feature": "teams",
+      "defaultEnabled": false,
+      "scope": "tenant",
+      "rationale": "Selected only with Teams setup to inspect and apply the reviewed built-in Teams Reader directory-role assignment. These delegated scopes belong to the separately administrator-bootstrapped public setup client, never to the federated runtime Application service principal. Selection does not approve any consent expansion.",
+      "evidenceState": "code",
+      "evidence": [
+        {
+          "path": "scripts/vendor/Azd.MaesterHooks/Maester-SetupHelpers.psm1",
+          "sha256": "11acfa972e1734e014d760f4204949708f0e9b41c89091637a08b38627929c23"
+        },
+        {
+          "path": "scripts/Setup-PostDeploy.ps1",
+          "sha256": "1d6c23b4a06d2d99d721b720f2dc60fa6f8bc7e253474d8256e5fb836dd232d6"
+        },
+        {
+          "path": "scripts/Maester-SetupConsent.psm1",
+          "sha256": "d1a0f8789f0dc66facdcfcf6c522beea42947b1b51fb431c8431f526d460a9e9"
+        },
+        {
+          "path": "scripts/Maester-AdoBootstrap.psm1",
+          "sha256": "4d1b048a712bebdecb417363278d2784f607628d8ece4895574b46f4532ebb6b"
         }
       ]
     }
   ],
   "gaps": [
-    "Always-created Azure RBAC is not inventoried: workload Reader on the solution resource group, workload Storage Blob Data Contributor on the solution storage account, deployment-operator Storage Blob Data Reader on that storage account, and the ARM authority needed to inspect or create those assignments.",
-    "Azure DevOps authority is not inventoried: project/repository creation or lookup, service-connection administration, repository and pipeline authorization, pipeline creation, and cleanup of those objects.",
-    "Deployment-operator Microsoft Graph authority outside the shared grant helper is not fully inventoried, including application, service-principal, federated-credential, group, directory-role, and consent operations performed by host setup.",
-    "Optional Exchange setup is not inventoried: Exchange.ManageAsApp, Exchange RBAC View-Only Configuration, RoleManagement.ReadWrite.Directory used by the shared advanced-setup connection, and its cleanup authority.",
-    "Optional Teams setup is not inventoried: Teams Reader or fallback Teams Administrator, RoleManagement.ReadWrite.Directory used by the shared advanced-setup connection, and its cleanup authority.",
-    "Optional Azure setup is not inventoried: workload Reader at operator-selected subscription or management-group scopes and the operator authority used to create and remove those assignments.",
-    "Optional report web app setup is not inventoried: workload Website Contributor, Group.Read.All and Directory.Read.All for group resolution, Application.ReadWrite.All, Directory.Read.All and DelegatedPermissionGrant.ReadWrite.All for Easy Auth, the tenant-wide openid/profile/email/User.Read delegated grant, and cleanup authority.",
-    "Cleanup authority and ownership boundaries for Azure RBAC, Microsoft Graph, Azure DevOps, Exchange, Teams, and web-app objects require separate review before any removal workflow is authorized.",
-    "Manual approved drift comparison adds no permission or collector and reuses the existing workload Blob publication route. Input acquisition, normalization/privacy, private Blob reader/retention review, and any future source collection authority remain outside this manifest and require separate evidence; existing runtime validation gates are unchanged."
+    "Azure RBAC authority remains a partial inventory: runtime Reader on the exact resource group, Storage Blob Data Contributor on the exact storage account, optional Website Contributor on the exact web app, operator Storage Blob Data Reader and selected optional Azure Reader scopes are explicitly hashed in the access plan, but the operator ARM create/remove-role authority is not represented here.",
+    "Azure DevOps authority is not represented as Graph permissions: bootstrap selected repository/draft endpoint creation, endpoint binding, project-wide allPipelines endpoint/repository authorization, exact pipeline creation/source publication and optional validation. Each access delta is separately reviewed; no project creation or arbitrary endpoint rebind is implemented.",
+    "Bootstrap inventories exact current app/SP identities, nonsecret credential metadata, federated trusts, existing Graph application assignments and direct directory roles before new trust. Inherited/group-based privileges, broader Azure RBAC and workload-specific existing access cannot be established comprehensively; all existing credentials and trusts can exercise new grants.",
+    "Optional Exchange application Exchange.ManageAsApp, Exchange service principal mapping and View-Only Configuration RBAC, selected built-in Teams Reader role and selected Azure Reader scopes are separately inventoried in the aggregate plan; workload-specific operator and cleanup authorities are not fully represented as requirements here. Teams Administrator fallback is removed.",
+    "Optional Easy Auth tenant-wide openid/profile/email/User.Read grant and Azure authsettings are in the aggregate plan; selected operator Graph scopes are represented. Existing delegated scopes and redirect URIs are preserved, and all missing identity/group/consent inventories fail closed.",
+    "Cleanup authority and object ownership still require separate live review before any removal. Existing role receipts are retained on idempotent reruns; only an environment-created repository is marked for teardown.",
+    "Approved drift remains explicit default-off and introduces no collector, credentials or grants. Its private output, input provenance, native input provisioning, private Blob reader permissions/retention and live publication require separate acceptance evidence.",
+    "This manifest is desired-permission/source evidence, not authorization, complete effective-access inventory, runtime self-grant, or permission revocation. Full27 and Minimal8 do not prove all licenses, app-only APIs, workload connections, upstream defaults or assessment coverage. No live permission grant, bootstrap, pipeline run or mail was used to qualify this source."
   ]
 }

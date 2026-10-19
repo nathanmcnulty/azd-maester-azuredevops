@@ -81,8 +81,6 @@ function Invoke-MaesterPreProvision {
     throw 'AZURE_TENANT_ID could not be resolved during preprovision.'
   }
 
-  Assert-GraphAccess -TenantId $TenantId -Scopes 'Directory.Read.All'
-
   Invoke-MaesterUpWizard `
     -SolutionName $SolutionName `
     -SubscriptionId $SubscriptionId `

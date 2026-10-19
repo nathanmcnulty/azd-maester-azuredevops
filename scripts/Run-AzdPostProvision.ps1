@@ -20,8 +20,19 @@ param(
   [string]$SecurityGroupDisplayName,
 
   [Parameter(Mandatory = $false)]
-  [ValidateSet('Minimal', 'Extended')]
-  [string]$PermissionProfile = 'Extended'
+  [ValidateSet('Minimal', 'Full', 'Extended')]
+  [string]$PermissionProfile = 'Full',
+  [switch]$Bootstrap,
+  [switch]$IncludeRuntimeApplicationBootstrap,
+  [switch]$ApplyBootstrap,
+  [string]$ApprovedBootstrapPlanHash,
+  [switch]$Apply,
+  [string]$ApprovedPlanHash,
+  [switch]$InteractiveConsent,
+  [switch]$AllowInteractiveGraphLogin,
+  [switch]$AllowGraphContextReplacement,
+  [switch]$IncludeMailSend,
+  [switch]$IncludeReportSettingsWrite
 )
 
 Set-StrictMode -Version Latest
@@ -122,6 +133,10 @@ if ($SecurityGroupDisplayName) {
   $setupParams['SecurityGroupDisplayName'] = $SecurityGroupDisplayName
 }
 
-& "$PSScriptRoot\Setup-PostDeploy.ps1" @setupParams
+foreach ($name in @('Bootstrap','IncludeRuntimeApplicationBootstrap','ApplyBootstrap','ApprovedBootstrapPlanHash','Apply','ApprovedPlanHash','InteractiveConsent','AllowInteractiveGraphLogin','AllowGraphContextReplacement','IncludeMailSend','IncludeReportSettingsWrite')) {
+  if ($PSBoundParameters.ContainsKey($name)) { $setupParams[$name] = $PSBoundParameters[$name] }
+}
+$setupResult = & "$PSScriptRoot\Setup-PostDeploy.ps1" @setupParams
+if ($setupResult) { return $setupResult }
 
 Write-Host 'azd postprovision completed successfully.'
