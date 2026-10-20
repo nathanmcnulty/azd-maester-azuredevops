@@ -40,8 +40,16 @@ $binding = if ($hasJournal) {
   @{environmentName=$EnvironmentName;solutionName=$SolutionName;tenantId=$infra.TenantId;subscriptionId=$infra.SubscriptionId;resourceGroupId=$infra.ResourceGroupId}
 }
 if ($binding.resourceGroupId -ine $infra.ResourceGroupId) { throw 'External and infrastructure ownership receipts identify different resource groups.' }
+$canPrompt = -not ($env:CI -eq 'true' -or $env:AZD_NON_INTERACTIVE -eq 'true' -or [Console]::IsInputRedirected)
 if ($Phase -eq 'PreDown') {
   if ($hasJournal) {
+    if (-not $PlanOnly -and $InteractiveConsent) {
+      $remainingScopes = @(Get-MaesterOwnedCleanupScopes -ProjectRoot $ProjectRoot -Binding $binding)
+      if ($remainingScopes.Count) {
+        if (-not $canPrompt) { throw 'Interactive postdown cleanup is required for the remaining ownership records, but this process cannot prompt. Down stopped before changing owned locks or Azure resources. Run azd down in an interactive terminal without --no-prompt. Postdown runs in a separate PowerShell process and may require a fresh sign-in to the approved setup client, account, tenant and selected scopes; a parent Process session is not transferred. Explicit noninteractive cleanup requires its own verified session and fresh exact plan approval.' }
+        Write-Host 'Postdown runs in a separate PowerShell process. It may require a fresh normal-browser sign-in to the approved setup client, account, tenant and selected cleanup scopes, followed by separate cleanup approval. A parent Process session is not transferred. If postdown is declined or fails, Azure may already be removed and the cleanup receipts remain for recovery.'
+      }
+    }
     if ($PlanOnly) { $InteractiveConsent=$false; $ApprovedUnlockPlanHash='' }
     return Test-MaesterOwnedCleanupPreDown -ProjectRoot $ProjectRoot -Binding $binding -ApprovedUnlockPlanHash $ApprovedUnlockPlanHash -InteractiveConsent:$InteractiveConsent -PlanOnly:$PlanOnly
   }
@@ -53,7 +61,7 @@ if ($Phase -eq 'PreDown') {
     if ($ApprovedUnlockPlanHash) {
       if ($ApprovedUnlockPlanHash -cne $inventory.PlanHash) { throw 'The lock-removal approval hash does not match the current plan.' }
     } elseif ($InteractiveConsent) {
-      if ($env:CI -eq 'true' -or $env:AZD_NON_INTERACTIVE -eq 'true' -or [Console]::IsInputRedirected) { throw 'Noninteractive lock removal requires an exact approved plan hash.' }
+      if (-not $canPrompt) { throw 'Noninteractive lock removal requires an exact approved plan hash.' }
       Write-Host 'Canceling the later azd deletion leaves these explicitly approved locks removed. Azure resources and authorization are unchanged by unlocking.'
       $answer = Read-Host 'Remove only the exact owned locks in this plan? [y/N]'
       if ($answer -notmatch '^(?i:y|yes)$') { throw 'Owned lock removal was not approved.' }
@@ -76,7 +84,12 @@ if (-not $hasJournal) {
 $scopes = @(Get-MaesterOwnedCleanupScopes -ProjectRoot $ProjectRoot -Binding $binding)
 Write-Host "Selected teardown delegated Graph scopes: $($scopes -join ', ')"
 if ($InteractiveConsent -and -not $AllowInteractiveGraphLogin -and $scopes.Count) {
-  if ($env:CI -eq 'true' -or $env:AZD_NON_INTERACTIVE -eq 'true' -or [Console]::IsInputRedirected) { throw 'Interactive teardown login is unavailable; explicitly select the existing Process session or normal browser-login option.' }
+  if (-not $canPrompt) {
+    $literalRoot=$ProjectRoot.Replace("'", "''")
+    $entrypoint=$PSCommandPath.Replace("'", "''")
+    $retry="& '$entrypoint' -Phase PostDown -ProjectRoot '$literalRoot' -EnvironmentName '$EnvironmentName' -SolutionName '$SolutionName' -TenantId '$TenantId' -SubscriptionId '$SubscriptionId' -InteractiveConsent"
+    throw "Azure has been removed; external cleanup is incomplete and the ownership journal is retained. Interactive teardown login is unavailable in this process. Use this entrypoint in an interactive terminal to select fresh normal-browser sign-in if needed and separately approve the fresh cleanup plan: $retry. Explicit noninteractive cleanup requires a verified session in this same process and fresh exact plan approval; a parent Process session is not transferred to an azd hook."
+  }
   Write-Host 'These scopes must already have separately approved administrator consent. Stop if sign-in requests new consent or unexpected device-code authentication. Process token caching still uses the SDK shared authentication-record file.'
   $answer = Read-Host "Allow normal browser sign-in if needed for setup account '$env:MAESTER_SETUP_ACCOUNT' in tenant '$TenantId', using only the scopes listed above? [y/N]"
   $AllowInteractiveGraphLogin = $answer -match '^(?i:y|yes)$'

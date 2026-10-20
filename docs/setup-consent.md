@@ -1,6 +1,6 @@
 # Reviewed setup and federation consent
 
-Maester 2.3.0 is pinned by package version and SHA-256. Shared hooks 3.1.0 are
+Maester 2.3.0 is pinned by package version and SHA-256. Shared hooks 3.1.1 are
 vendored at the exact source revision in [the component lockfile](../azd-components.lock.json).
 The separate delegated-session coordinator 1.1.0 remains pinned to reviewed
 [Reference #134](https://github.com/nathanmcnulty/azd-reference/pull/134), revision
@@ -63,6 +63,11 @@ to the [official unifiedRoleAssignments permission table](https://learn.microsof
 The operator also needs a supported directory role and appropriate Azure/ADO,
 Exchange and workload authority for the selected operations. These delegated
 setup scopes are never assigned to the runtime application.
+
+
+## Interactive teardown
+
+Run `azd down` in an interactive terminal and omit `--no-prompt`. When external cleanup records remain, hooks 3.1.1 refuses the interactive path in CI, with `AZD_NON_INTERACTIVE=true`, or when stdin is redirected, before removing owned locks or Azure resources. The guard checks actual prompt availability; it does not promise that `--no-prompt` is exposed to shell hooks as an environment signal. `-PlanOnly` remains a read-only preview. If Azure is removed before external cleanup is declined or blocked, receipts remain. Recover in an interactive terminal with the original anchors: `./scripts/Run-AzdPostDown.ps1 -EnvironmentName <original-environment> -TenantId <original-tenant> -SubscriptionId <original-subscription> -InteractiveConsent`. This can select a fresh normal-browser login if needed, then separately asks approval for the fresh cleanup plan. Deliberate noninteractive cleanup remains supported with an already verified Graph `Process` context in that same PowerShell process and a fresh exact `-ApprovedPlanHash`; the parent shell's context is not transferred and the reviewed scope union is unchanged.
 
 ## Phase 1: bootstrap exact runtime identities
 

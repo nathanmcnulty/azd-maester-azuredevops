@@ -21,9 +21,9 @@
     },
     {
       "id": "maester-azd-hooks",
-      "version": "3.1.0",
+      "version": "3.1.1",
       "sourceRepository": "https://github.com/nathanmcnulty/azd-reference",
-      "sourceRevision": "fc14358ee42e332e3d375a23463c0ef2a7de4c4a",
+      "sourceRevision": "def75ea1d03636ebae234c5e0b9c0fda25f0f9bf",
       "files": [
         {
           "source": "components/powershell/maester-azd-hooks/Get-ManagedIdentityPrincipal.ps1",
@@ -43,7 +43,7 @@
         {
           "source": "components/powershell/maester-azd-hooks/Maester-PreDownCleanup.psm1",
           "target": "scripts/vendor/Azd.MaesterHooks/Maester-PreDownCleanup.psm1",
-          "sha256": "28ec585b5ac07a679908b2cab2a100651b17ff9f5f8bc1573c957fad226f2a69"
+          "sha256": "aff7487ce9733a83aafe92c1d1cd5687234e2b92cd0df98303927b51ab3ed979"
         },
         {
           "source": "components/powershell/maester-azd-hooks/Maester-PreProvision.psm1",
@@ -88,7 +88,7 @@
         {
           "source": "components/powershell/maester-azd-hooks/Invoke-MaesterDown.ps1",
           "target": "scripts/vendor/Azd.MaesterHooks/Invoke-MaesterDown.ps1",
-          "sha256": "c39518224f0723156e8bb9abd42930e3d42552964cafce985b4e54ff2aaac1df"
+          "sha256": "4435a21500e23fb78bbef04af88293078577f37bda64d6af9db0b7532f13d954"
         }
       ]
     },

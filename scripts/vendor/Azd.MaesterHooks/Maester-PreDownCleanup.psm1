@@ -767,8 +767,9 @@ function Invoke-MaesterOwnedCleanupPostDown {
   } catch {
     if ($azureAbsent) {
       $literalRoot=$ProjectRoot.Replace("'", "''")
-      $retry="Invoke-MaesterOwnedCleanupPostDown -ProjectRoot '$literalRoot' -Binding (Resolve-MaesterCleanupBinding -ProjectRoot '$literalRoot' -EnvironmentName '$($Binding.environmentName)' -SolutionName '$($Binding.solutionName)' -TenantId '$($Binding.tenantId)' -SubscriptionId '$($Binding.subscriptionId)') -InteractiveConsent"
-      throw "Azure has been removed; external cleanup is incomplete. The ownership journal is retained. Resolve the blocker and review a fresh plan before retrying: $retry. $($_.Exception.Message)"
+      $entrypoint=(Join-Path $PSScriptRoot 'Invoke-MaesterDown.ps1').Replace("'", "''")
+      $retry="& '$entrypoint' -Phase PostDown -ProjectRoot '$literalRoot' -EnvironmentName '$($Binding.environmentName)' -SolutionName '$($Binding.solutionName)' -TenantId '$($Binding.tenantId)' -SubscriptionId '$($Binding.subscriptionId)' -InteractiveConsent"
+      throw "Azure has been removed; external cleanup is incomplete. The ownership journal is retained. Resolve the blocker, then use this entrypoint in an interactive terminal to select fresh normal-browser sign-in if needed and review a fresh cleanup plan. A parent Process session is not transferred: $retry. $($_.Exception.Message)"
     }
     throw
   } finally { if ($null -ne $session) { $session.Dispose() } }

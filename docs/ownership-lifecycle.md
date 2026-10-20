@@ -34,6 +34,10 @@ The journal is local and unsigned. It guards against accidental target confusion
 
 Successful full down retains the ownership receipts. Reprovisioning the same environment is intentionally blocked until a supported reset/reconciliation workflow exists; do not remove the receipts to bypass that protection. A new environment is the supported initial provision/setup/down roundtrip.
 
+## Interactive down and recovery
+
+Run `azd down` in an interactive terminal and omit `--no-prompt`. Hooks 3.1.1 checks actual prompt availability before owned lock removal when external cleanup records remain; it does not promise a shell-hook environment signal for `--no-prompt`. `-PlanOnly` stays read-only. If Azure is removed before cleanup is declined or blocked, receipts remain. Recover using `./scripts/Run-AzdPostDown.ps1 -EnvironmentName <original-environment> -TenantId <original-tenant> -SubscriptionId <original-subscription> -InteractiveConsent` in an interactive terminal. It can select a fresh normal-browser login if needed, then separately asks approval for the fresh cleanup plan. A deliberate noninteractive retry needs an already verified Graph `Process` context and fresh exact `-ApprovedPlanHash` in the same PowerShell process; azd does not transfer the parent shell's context, and the reviewed scope union is unchanged.
+
 ## Offline coverage and live boundary
 
 Stateful tests execute the production planners, application functions, setup caller, publication helper, and actual predown/postdown wrapper files with provider boundaries replaced by fixtures. They exercise partial creation, failed readback, exact ID persistence, new grants on reused parents, no-op preservation, ambiguous publication, lifecycle-lock release, owned-object removal, adopted-object preservation, changed-source/dependency refusal and partial-cleanup retry. They never authenticate or contact Azure, Graph, Exchange or Azure DevOps.

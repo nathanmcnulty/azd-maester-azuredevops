@@ -206,7 +206,7 @@ Describe 'Actual Azure DevOps down wrappers with stateful offline providers' {
     Initialize-OfflineDownReceipts
     $f = $global:AdoDownFixture
     $before = Get-OfflineDownJournal | ConvertTo-Json -Depth 30
-    (Invoke-OfflineAdoDown PreDown).ExternalDeletionAttempted | Should -BeFalse
+    (Invoke-OfflineAdoDown PreDown @{ PlanOnly = $true; InteractiveConsent = $true }).ExternalDeletionAttempted | Should -BeFalse
     $f.Deletes.Count | Should -Be 0
     $f.GraphSessions | Should -Be 0
     (Get-OfflineDownJournal | ConvertTo-Json -Depth 30) | Should -BeExactly $before
@@ -219,6 +219,19 @@ Describe 'Actual Azure DevOps down wrappers with stateful offline providers' {
     @((Get-OfflineDownJournal).records | Where-Object state -ne deleted).Count | Should -Be 0
     (Invoke-OfflineAdoDown PostDown).Completed | Should -BeTrue
     $f.Deletes.Count | Should -Be 6
+  }
+  It 'stops an interactive predown request in CI before lock or cleanup changes' {
+    Initialize-OfflineDownReceipts
+    $f = $global:AdoDownFixture
+    $readsBefore = $f.Reads.Count
+    $savedCi = [Environment]::GetEnvironmentVariable('CI')
+    try {
+      [Environment]::SetEnvironmentVariable('CI', 'true')
+      { Invoke-OfflineAdoDown PreDown @{ InteractiveConsent = $true } } | Should -Throw '*this process cannot prompt*Down stopped before changing owned locks or Azure resources*'
+    } finally { [Environment]::SetEnvironmentVariable('CI', $savedCi) }
+    $f.Deletes.Count | Should -Be 0
+    $f.GraphSessions | Should -Be 0
+    $f.Reads.Count | Should -Be $readsBefore
   }
   It 'refuses direct postdown while Azure still exists before Graph authentication or delete' {
     Initialize-OfflineDownReceipts
