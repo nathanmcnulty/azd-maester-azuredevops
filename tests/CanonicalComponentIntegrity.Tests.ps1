@@ -5,9 +5,9 @@ Describe 'Reviewed canonical component and permission evidence' {
     $hooks = @($lock.components | Where-Object id -eq 'maester-azd-hooks')[0]
   }
   It 'pins the reviewed consent components and validates every vendored hash' {
-    $hooks.version | Should -Be '3.0.1'
+    $hooks.version | Should -Be '3.1.0'
     $hooks.sourceRepository | Should -Be 'https://github.com/nathanmcnulty/azd-reference'
-    $hooks.sourceRevision | Should -Be 'b9019c809bcffd2747fdb2f47e455ee9edfe7564'
+    $hooks.sourceRevision | Should -Be 'fc14358ee42e332e3d375a23463c0ef2a7de4c4a'
     $hooks.files.Count | Should -Be 13
     $coordinator = @($lock.components | Where-Object id -eq 'graph-delegated-authentication')[0]
     $coordinator.version | Should -Be '1.1.0'

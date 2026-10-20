@@ -567,9 +567,14 @@ function Get-MaesterCleanupTarget {
       if (Get-MaesterCleanupField $expected 'repositoryName') { Assert-MaesterCleanupEqual (Get-MaesterCleanupField $value 'name') $expected.repositoryName 'repository name' -CaseSensitive }
       Assert-MaesterCleanupEqual (Get-MaesterCleanupField (Get-MaesterCleanupField $value 'project') 'id') $expected.projectId 'repository project'
       $refs=Assert-MaesterCleanupCollection (Invoke-MaesterCleanupAdoRequest $binding GET "/$($expected.projectId)/_apis/git/repositories/$($ids.repositoryId)/refs?api-version=7.1") 'repository refs'
-      $publications=@($Journal.records | Where-Object { $_.kind -eq 'AdoRepositoryPublication' -and $_.coveredByOperationId -eq $Record.operationId -and $_.state -ne 'deleted' })
+      $publications=@($Journal.records | Where-Object { $_.kind -eq 'AdoRepositoryPublication' -and $_.coveredByOperationId -eq $Record.operationId })
+      # Old publication commits remain immutable receipts. Only each complete
+      # chain's terminal publication can authorize the current branch tip. The
+      # canonical journal has already rejected missing, cross-target or forked links.
+      $supersededIds=@($publications | ForEach-Object { Get-MaesterCleanupField $_ 'supersedesOperationId' } | Where-Object { $_ })
+      $terminalPublications=@($publications | Where-Object { $_.state -cne 'deleted' -and $_.operationId -cnotin $supersededIds })
       foreach ($ref in $refs) {
-        $matchingPublications=@($publications | Where-Object { $_.expected.branch -ceq (Get-MaesterCleanupField $ref 'name') -and $_.after.commitId -ceq (Get-MaesterCleanupField $ref 'objectId') })
+        $matchingPublications=@($terminalPublications | Where-Object { $_.expected.branch -ceq (Get-MaesterCleanupField $ref 'name') -and $_.after.commitId -ceq (Get-MaesterCleanupField $ref 'objectId') })
         if ($matchingPublications.Count -ne 1) { throw 'Repository has an unrecorded or changed branch/tag; preserving user work.' }
       }
       $repoResourceId="$($expected.projectId).$($ids.repositoryId)"

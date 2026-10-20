@@ -643,7 +643,7 @@
         },
         {
           "path": "scripts/Setup-PostDeploy.ps1",
-          "sha256": "3354c105b867fba01fd1ba0899ee3b0031c5eec9376c6cfd035cc9bab850fd6b"
+          "sha256": "434bd76dd25811df3c64f38b2a16d48729d532bbbe28a457c3131514d9409e97"
         }
       ]
     },
@@ -669,7 +669,7 @@
         },
         {
           "path": "scripts/Setup-PostDeploy.ps1",
-          "sha256": "3354c105b867fba01fd1ba0899ee3b0031c5eec9376c6cfd035cc9bab850fd6b"
+          "sha256": "434bd76dd25811df3c64f38b2a16d48729d532bbbe28a457c3131514d9409e97"
         }
       ]
     },
@@ -691,15 +691,15 @@
         },
         {
           "path": "scripts/Setup-PostDeploy.ps1",
-          "sha256": "3354c105b867fba01fd1ba0899ee3b0031c5eec9376c6cfd035cc9bab850fd6b"
+          "sha256": "434bd76dd25811df3c64f38b2a16d48729d532bbbe28a457c3131514d9409e97"
         },
         {
           "path": "scripts/Maester-SetupConsent.psm1",
-          "sha256": "0b28084eb2fd41bd180c957ddbc0c95cea5831217a01868ff2d7387b6a354d9e"
+          "sha256": "645894e07ab083ed585c3ec100fb406a29223e783c48b23b8f6fadb1646a7f3b"
         },
         {
           "path": "scripts/Maester-AdoBootstrap.psm1",
-          "sha256": "609eb3e933e8561773f7b6bb7e902af1ddf0a93380af760ba365361bc692bf10"
+          "sha256": "2d0e195e40fa5ddbeb3e9c8bfa4f94a132d4497db2925e9ea3e64b4d89389cce"
         }
       ]
     },
@@ -721,15 +721,15 @@
         },
         {
           "path": "scripts/Setup-PostDeploy.ps1",
-          "sha256": "3354c105b867fba01fd1ba0899ee3b0031c5eec9376c6cfd035cc9bab850fd6b"
+          "sha256": "434bd76dd25811df3c64f38b2a16d48729d532bbbe28a457c3131514d9409e97"
         },
         {
           "path": "scripts/Maester-SetupConsent.psm1",
-          "sha256": "0b28084eb2fd41bd180c957ddbc0c95cea5831217a01868ff2d7387b6a354d9e"
+          "sha256": "645894e07ab083ed585c3ec100fb406a29223e783c48b23b8f6fadb1646a7f3b"
         },
         {
           "path": "scripts/Maester-AdoBootstrap.psm1",
-          "sha256": "609eb3e933e8561773f7b6bb7e902af1ddf0a93380af760ba365361bc692bf10"
+          "sha256": "2d0e195e40fa5ddbeb3e9c8bfa4f94a132d4497db2925e9ea3e64b4d89389cce"
         }
       ]
     },
@@ -751,15 +751,15 @@
         },
         {
           "path": "scripts/Setup-PostDeploy.ps1",
-          "sha256": "3354c105b867fba01fd1ba0899ee3b0031c5eec9376c6cfd035cc9bab850fd6b"
+          "sha256": "434bd76dd25811df3c64f38b2a16d48729d532bbbe28a457c3131514d9409e97"
         },
         {
           "path": "scripts/Maester-SetupConsent.psm1",
-          "sha256": "0b28084eb2fd41bd180c957ddbc0c95cea5831217a01868ff2d7387b6a354d9e"
+          "sha256": "645894e07ab083ed585c3ec100fb406a29223e783c48b23b8f6fadb1646a7f3b"
         },
         {
           "path": "scripts/Maester-AdoBootstrap.psm1",
-          "sha256": "609eb3e933e8561773f7b6bb7e902af1ddf0a93380af760ba365361bc692bf10"
+          "sha256": "2d0e195e40fa5ddbeb3e9c8bfa4f94a132d4497db2925e9ea3e64b4d89389cce"
         }
       ]
     },
@@ -781,15 +781,15 @@
         },
         {
           "path": "scripts/Setup-PostDeploy.ps1",
-          "sha256": "3354c105b867fba01fd1ba0899ee3b0031c5eec9376c6cfd035cc9bab850fd6b"
+          "sha256": "434bd76dd25811df3c64f38b2a16d48729d532bbbe28a457c3131514d9409e97"
         },
         {
           "path": "scripts/Maester-SetupConsent.psm1",
-          "sha256": "0b28084eb2fd41bd180c957ddbc0c95cea5831217a01868ff2d7387b6a354d9e"
+          "sha256": "645894e07ab083ed585c3ec100fb406a29223e783c48b23b8f6fadb1646a7f3b"
         },
         {
           "path": "scripts/Maester-AdoBootstrap.psm1",
-          "sha256": "609eb3e933e8561773f7b6bb7e902af1ddf0a93380af760ba365361bc692bf10"
+          "sha256": "2d0e195e40fa5ddbeb3e9c8bfa4f94a132d4497db2925e9ea3e64b4d89389cce"
         }
       ]
     },
@@ -811,15 +811,15 @@
         },
         {
           "path": "scripts/Setup-PostDeploy.ps1",
-          "sha256": "3354c105b867fba01fd1ba0899ee3b0031c5eec9376c6cfd035cc9bab850fd6b"
+          "sha256": "434bd76dd25811df3c64f38b2a16d48729d532bbbe28a457c3131514d9409e97"
         },
         {
           "path": "scripts/Maester-SetupConsent.psm1",
-          "sha256": "0b28084eb2fd41bd180c957ddbc0c95cea5831217a01868ff2d7387b6a354d9e"
+          "sha256": "645894e07ab083ed585c3ec100fb406a29223e783c48b23b8f6fadb1646a7f3b"
         },
         {
           "path": "scripts/Maester-AdoBootstrap.psm1",
-          "sha256": "609eb3e933e8561773f7b6bb7e902af1ddf0a93380af760ba365361bc692bf10"
+          "sha256": "2d0e195e40fa5ddbeb3e9c8bfa4f94a132d4497db2925e9ea3e64b4d89389cce"
         }
       ]
     },
@@ -841,15 +841,15 @@
         },
         {
           "path": "scripts/Setup-PostDeploy.ps1",
-          "sha256": "3354c105b867fba01fd1ba0899ee3b0031c5eec9376c6cfd035cc9bab850fd6b"
+          "sha256": "434bd76dd25811df3c64f38b2a16d48729d532bbbe28a457c3131514d9409e97"
         },
         {
           "path": "scripts/Maester-SetupConsent.psm1",
-          "sha256": "0b28084eb2fd41bd180c957ddbc0c95cea5831217a01868ff2d7387b6a354d9e"
+          "sha256": "645894e07ab083ed585c3ec100fb406a29223e783c48b23b8f6fadb1646a7f3b"
         },
         {
           "path": "scripts/Maester-AdoBootstrap.psm1",
-          "sha256": "609eb3e933e8561773f7b6bb7e902af1ddf0a93380af760ba365361bc692bf10"
+          "sha256": "2d0e195e40fa5ddbeb3e9c8bfa4f94a132d4497db2925e9ea3e64b4d89389cce"
         }
       ]
     },
@@ -871,15 +871,15 @@
         },
         {
           "path": "scripts/Setup-PostDeploy.ps1",
-          "sha256": "3354c105b867fba01fd1ba0899ee3b0031c5eec9376c6cfd035cc9bab850fd6b"
+          "sha256": "434bd76dd25811df3c64f38b2a16d48729d532bbbe28a457c3131514d9409e97"
         },
         {
           "path": "scripts/Maester-SetupConsent.psm1",
-          "sha256": "0b28084eb2fd41bd180c957ddbc0c95cea5831217a01868ff2d7387b6a354d9e"
+          "sha256": "645894e07ab083ed585c3ec100fb406a29223e783c48b23b8f6fadb1646a7f3b"
         },
         {
           "path": "scripts/Maester-AdoBootstrap.psm1",
-          "sha256": "609eb3e933e8561773f7b6bb7e902af1ddf0a93380af760ba365361bc692bf10"
+          "sha256": "2d0e195e40fa5ddbeb3e9c8bfa4f94a132d4497db2925e9ea3e64b4d89389cce"
         }
       ]
     },
@@ -897,7 +897,7 @@
       "evidence": [
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Maester-PreDownCleanup.psm1",
-          "sha256": "6bf4a58d274be735f3b3905d7c83e0edabbfc514f30b01bf3138b1e94b562bf9"
+          "sha256": "28ec585b5ac07a679908b2cab2a100651b17ff9f5f8bc1573c957fad226f2a69"
         },
         {
           "path": "scripts/Run-AzdPostDown.ps1",
@@ -919,7 +919,7 @@
       "evidence": [
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Maester-PreDownCleanup.psm1",
-          "sha256": "6bf4a58d274be735f3b3905d7c83e0edabbfc514f30b01bf3138b1e94b562bf9"
+          "sha256": "28ec585b5ac07a679908b2cab2a100651b17ff9f5f8bc1573c957fad226f2a69"
         },
         {
           "path": "scripts/Run-AzdPostDown.ps1",
@@ -941,7 +941,7 @@
       "evidence": [
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Maester-PreDownCleanup.psm1",
-          "sha256": "6bf4a58d274be735f3b3905d7c83e0edabbfc514f30b01bf3138b1e94b562bf9"
+          "sha256": "28ec585b5ac07a679908b2cab2a100651b17ff9f5f8bc1573c957fad226f2a69"
         },
         {
           "path": "scripts/Run-AzdPostDown.ps1",
@@ -963,7 +963,7 @@
       "evidence": [
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Maester-PreDownCleanup.psm1",
-          "sha256": "6bf4a58d274be735f3b3905d7c83e0edabbfc514f30b01bf3138b1e94b562bf9"
+          "sha256": "28ec585b5ac07a679908b2cab2a100651b17ff9f5f8bc1573c957fad226f2a69"
         },
         {
           "path": "scripts/Run-AzdPostDown.ps1",
@@ -985,7 +985,7 @@
       "evidence": [
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Maester-PreDownCleanup.psm1",
-          "sha256": "6bf4a58d274be735f3b3905d7c83e0edabbfc514f30b01bf3138b1e94b562bf9"
+          "sha256": "28ec585b5ac07a679908b2cab2a100651b17ff9f5f8bc1573c957fad226f2a69"
         },
         {
           "path": "scripts/Run-AzdPostDown.ps1",
@@ -1007,7 +1007,7 @@
       "evidence": [
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Maester-PreDownCleanup.psm1",
-          "sha256": "6bf4a58d274be735f3b3905d7c83e0edabbfc514f30b01bf3138b1e94b562bf9"
+          "sha256": "28ec585b5ac07a679908b2cab2a100651b17ff9f5f8bc1573c957fad226f2a69"
         },
         {
           "path": "scripts/Run-AzdPostDown.ps1",
@@ -1018,7 +1018,7 @@
   ],
   "gaps": [
     "Azure RBAC authority remains a partial inventory: runtime Reader on the exact resource group, Storage Blob Data Contributor on the exact storage account, optional Website Contributor on the exact web app, operator Storage Blob Data Reader and selected optional Azure Reader scopes are explicitly hashed in the access plan, but the operator ARM create/remove-role authority is not represented here.",
-    "Azure DevOps authority is not represented as Graph permissions: bootstrap selected repository/draft endpoint creation, endpoint binding, project-wide allPipelines endpoint/repository authorization, exact pipeline creation/source publication and optional validation. Each access delta is separately reviewed; no project creation or arbitrary endpoint rebind is implemented.",
+    "Azure DevOps authority is not represented as Graph permissions: bootstrap selected repository/draft endpoint creation and endpoint binding; separately approved unrun pipeline preparation by exact repository ID; endpoint/repository authorization for only the exact selected pipeline, preserving unrelated grants and rejecting allPipelines access; approved file/schedule publication and optional validation. Each access delta is separately reviewed; no project creation or arbitrary endpoint rebind is implemented.",
     "Bootstrap inventories exact current app/SP identities, nonsecret credential metadata, federated trusts, existing Graph application assignments and direct directory roles before new trust. Inherited/group-based privileges, broader Azure RBAC and workload-specific existing access cannot be established comprehensively; all existing credentials and trusts can exercise new grants.",
     "Optional Exchange application Exchange.ManageAsApp, Exchange service principal mapping and View-Only Configuration RBAC, selected built-in Teams Reader role and selected Azure Reader scopes are separately inventoried in the aggregate plan; workload-specific operator and cleanup authorities are not fully represented as requirements here. Teams Administrator fallback is removed.",
     "Optional Easy Auth tenant-wide openid/profile/email/User.Read grant and Azure authsettings are in the aggregate plan; selected operator Graph scopes are represented. Existing delegated scopes and redirect URIs are preserved, and all missing identity/group/consent inventories fail closed.",

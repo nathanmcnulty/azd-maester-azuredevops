@@ -368,7 +368,7 @@ function Assert-MaesterJournalDocument {
   $activeKeys = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
   foreach ($record in $Journal.records) {
     $fields = @('operationId', 'key', 'kind', 'planHash', 'ownership', 'state', 'expected', 'exactIds', 'before', 'after', 'coveredByOperationId', 'createdUtc', 'updatedUtc')
-    Assert-MaesterJournalFields $record $fields $fields 'record'
+    Assert-MaesterJournalFields $record @($fields + 'supersedesOperationId') $fields 'record'
     Assert-MaesterJournalGuid $record.operationId
     if ($operations.ContainsKey($record.operationId)) { throw 'Ownership journal contains duplicate operation IDs.' }
     $operations[$record.operationId] = $record
@@ -418,6 +418,7 @@ function Assert-MaesterJournalDocument {
       if ($timestamp -isnot [string] -or -not [DateTimeOffset]::TryParseExact($timestamp, 'o', [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None, [ref]$parsed) -or $parsed.Offset -ne [TimeSpan]::Zero) { throw 'Ownership journal has an invalid UTC checkpoint timestamp.' }
     }
   }
+  Assert-MaesterJournalPublicationChains $Journal $operations
   foreach ($record in $Journal.records) {
     if ($null -eq $record.coveredByOperationId) { continue }
     if (-not $operations.ContainsKey($record.coveredByOperationId)) { throw 'Ownership journal references a missing parent operation.' }
@@ -438,6 +439,49 @@ function Assert-MaesterJournalDocument {
       default { $false }
     }
     if (-not $matchesParent) { throw 'Ownership journal covered mutation does not identify its exact owned parent.' }
+  }
+}
+
+# Publication successors are deliberately limited to branches in an owned repo.
+# Receipts are append-only: the explicit predecessor and commit boundary describe
+# one linear chain, not permission to revise an applied mutation receipt.
+function Assert-MaesterJournalPublicationChains {
+  param($Journal, $Operations)
+  $positions = @{}
+  for ($index = 0; $index -lt $Journal.records.Count; $index++) { $positions[$Journal.records[$index].operationId] = $index }
+  $successors = @{}
+  $activeRoots = @{}
+  foreach ($record in $Journal.records) {
+    if (-not $record.Contains('supersedesOperationId')) { continue }
+    if ($record.kind -cne 'AdoRepositoryPublication' -or $record.ownership -cne 'Mutation' -or $null -eq $record.coveredByOperationId) { throw 'Only an owned-parent repository publication may supersede an operation.' }
+    Assert-MaesterJournalGuid $record.supersedesOperationId
+    if (-not $Operations.ContainsKey($record.supersedesOperationId)) { throw 'Repository publication references a missing predecessor operation.' }
+    $prior = $Operations[$record.supersedesOperationId]
+    if ($prior.kind -cne 'AdoRepositoryPublication' -or $prior.ownership -cne 'Mutation' -or $prior.coveredByOperationId -cne $record.coveredByOperationId) { throw 'Repository publication successor must identify the same exact owned parent and target.' }
+    foreach ($field in $script:JournalKindContracts.AdoRepositoryPublication.expected) {
+      if ($prior.expected[$field] -cne $record.expected[$field]) { throw 'Repository publication successor must identify the same exact owned parent and target.' }
+    }
+    if ($positions[$prior.operationId] -ge $positions[$record.operationId]) { throw 'Repository publication predecessor must be an earlier receipt; cycles and reordered chains are forbidden.' }
+    if ($successors.ContainsKey($prior.operationId)) { throw 'Repository publication predecessor already has a successor; branching chains are forbidden.' }
+    $successors[$prior.operationId] = $record.operationId
+    if ($prior.state -ceq 'pending' -or -not $prior.exactIds.Contains('repositoryId') -or -not $prior.after.Contains('commitId') -or -not $record.before.Contains('commitId') -or -not $record.after.Contains('commitId')) { throw 'Repository publication successors require acknowledged predecessor and exact before/after commits.' }
+    foreach ($commit in @($prior.after.commitId, $record.before.commitId, $record.after.commitId)) {
+      if ($commit -isnot [string] -or $commit -cnotmatch '^[0-9a-f]{40}$') { throw 'Repository publication successors require exact Git commit IDs.' }
+    }
+    if ($record.before.commitId -cne $prior.after.commitId) { throw 'Repository publication before commit does not match its predecessor after commit.' }
+    if ($record.after.commitId -ceq $record.before.commitId) { throw 'A no-op repository publication must preserve the existing receipt.' }
+    if ($record.state -cin @('applied', 'deleting', 'deleted') -and -not $record.exactIds.Contains('commitId')) { throw 'Repository publication successor requires its exact acknowledged commit ID.' }
+  }
+  foreach ($record in @($Journal.records | Where-Object kind -CEQ 'AdoRepositoryPublication')) {
+    if ($record.exactIds.Contains('commitId') -and (-not $record.after.Contains('commitId') -or $record.exactIds.commitId -cne $record.after.commitId)) { throw 'Repository publication response commit differs from its planned after commit.' }
+    if ($record.state -ceq 'deleted') { continue }
+    $identity = @{}
+    foreach ($field in $script:JournalKindContracts.AdoRepositoryPublication.expected) { $identity[$field] = $record.expected[$field] }
+    $tuple = ConvertTo-MaesterJournalCanonicalJson $identity
+    $root = $record
+    while ($root.Contains('supersedesOperationId')) { $root = $Operations[$root.supersedesOperationId] }
+    if ($activeRoots.ContainsKey($tuple) -and $activeRoots[$tuple] -cne $root.operationId) { throw 'Repository publication target has unrelated active receipts; an explicit linear successor chain is required.' }
+    $activeRoots[$tuple] = $root.operationId
   }
 }
 
@@ -499,7 +543,8 @@ function Start-MaesterOwnedOperation {
     [Parameter(Mandatory)][System.Collections.IDictionary]$Expected,
     [System.Collections.IDictionary]$Before = @{},
     [System.Collections.IDictionary]$After = @{},
-    [string]$CoveredByOperationId
+    [string]$CoveredByOperationId,
+    [string]$SupersedesOperationId
   )
   $journal = Get-MaesterOwnershipJournal $Session
   $existing = @($journal.records | Where-Object { $_.key -ceq $Key -and $_.state -cne 'deleted' })
@@ -520,6 +565,11 @@ function Start-MaesterOwnedOperation {
     createdUtc = $now
     updatedUtc = $now
   }
+  if ($PSBoundParameters.ContainsKey('SupersedesOperationId')) {
+    $record.supersedesOperationId = $SupersedesOperationId.ToLowerInvariant()
+    $prior = @($journal.records | Where-Object operationId -CEQ $record.supersedesOperationId)
+    if ($prior.Count -ne 1 -or $prior[0].state -cne 'applied') { throw 'A repository publication predecessor must be the current applied receipt before a successor starts.' }
+  }
   if ($CoveredByOperationId) {
     $parent = @($journal.records | Where-Object { $_.operationId -ceq $record.coveredByOperationId })
     if ($parent.Count -ne 1 -or $parent[0].state -cne 'applied' -or $parent[0].ownership -cne 'Created') { throw 'A covering parent must be an applied owned creation before the child mutation starts.' }
@@ -533,7 +583,7 @@ function Start-MaesterOwnedOperation {
     foreach ($prior in @($journal.records | Where-Object { $_.state -cne 'deleted' -and $_.kind -ceq $Kind })) {
       $priorIdentity = @{}
       foreach ($field in $identityFields) { $priorIdentity[$field] = $prior.expected[$field] }
-      if ((ConvertTo-MaesterJournalCanonicalJson $priorIdentity) -ceq $tuple) { throw 'The same active ownership target tuple already exists under another operation key; do not repeat the remote write.' }
+      if ((ConvertTo-MaesterJournalCanonicalJson $priorIdentity) -ceq $tuple -and -not ($Kind -ceq 'AdoRepositoryPublication' -and $record.Contains('supersedesOperationId'))) { throw 'The same active ownership target tuple already exists under another operation key; do not repeat the remote write.' }
     }
   }
   $journal.records = @($journal.records) + @($record)
@@ -557,6 +607,7 @@ function Complete-MaesterOwnedOperation {
   $record = $matchingRecords[0]
   $ids = Copy-MaesterJournalInput $ExactIds
   if ($record.state -ceq 'applied') {
+    if ($record.kind -ceq 'AdoRepositoryPublication' -and (ConvertTo-MaesterJournalCanonicalJson $record.exactIds) -cne (ConvertTo-MaesterJournalCanonicalJson $ids)) { throw 'An applied repository publication receipt cannot be replaced or enriched; append an explicit successor instead.' }
     foreach ($key in $record.exactIds.Keys) {
       if (-not $ids.Contains($key) -or $ids[$key] -cne $record.exactIds[$key]) { throw 'An applied ownership receipt cannot be replaced with different response metadata.' }
     }
@@ -570,7 +621,11 @@ function Complete-MaesterOwnedOperation {
   }
   if ($record.state -cne 'pending') { throw 'Only the original pending operation may acknowledge a provider response.' }
   $record.exactIds = $ids
-  if ($PSBoundParameters.ContainsKey('After')) { $record.after = Copy-MaesterJournalInput $After }
+  if ($PSBoundParameters.ContainsKey('After')) {
+    $afterCopy = Copy-MaesterJournalInput $After
+    if ($record.kind -ceq 'AdoRepositoryPublication' -and $record.after.Contains('commitId') -and (-not $afterCopy.Contains('commitId') -or $afterCopy.commitId -cne $record.after.commitId)) { throw 'Repository publication response cannot replace its planned after commit.' }
+    $record.after = $afterCopy
+  }
   $record.state = 'applied'
   $record.updatedUtc = [DateTimeOffset]::UtcNow.ToString('o')
   Write-MaesterJournalFile $Session $journal

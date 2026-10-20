@@ -1,6 +1,6 @@
 # Reviewed setup and federation consent
 
-Maester 2.3.0 is pinned by package version and SHA-256. Shared hooks 3.0.1 are
+Maester 2.3.0 is pinned by package version and SHA-256. Shared hooks 3.1.0 are
 vendored at the exact source revision in [the component lockfile](../azd-components.lock.json).
 The separate delegated-session coordinator 1.1.0 remains pinned to reviewed
 [Reference #134](https://github.com/nathanmcnulty/azd-reference/pull/134), revision
@@ -116,25 +116,58 @@ client, tenant, project or subscription, and never changes the runtime to a
 managed identity. Host scope metadata is an additional guard; Azure RBAC remains
 the enforcement boundary.
 
-## Phase 2: aggregate access plan, then application
+## Phase 2: prepare the exact unrun pipeline
+
+After runtime bootstrap, run `./scripts/Setup-PostDeploy.ps1 -PreparePipeline`.
+The read-only preparation plan binds the exact repository, branch, reviewed
+file bytes and pipeline name/YAML path. Apply only that stage with
+`-ApplyPipeline -ApprovedPipelinePlanHash <hash>`. Setup publishes the reviewed
+manual-only files, creates the missing pipeline and verifies its returned ID
+and definition revision. It stops before Graph/RBAC grants, pipeline resource
+authorization or an assessment run. Ordinary setup also returns this preparation
+plan when the selected pipeline is missing; an access-approval hash cannot
+authorize preparation.
+
+Preparation retains `trigger: none` and `pr: none` and does not activate a
+schedule, even when the requested production configuration includes one. Review
+a fresh access plan after the exact pipeline exists. The ordinary default
+schedule remains weekly (`0 0 * * 0`), resolved after `AZDO_SCHEDULE_CRON`.
+To choose manual-only execution, explicitly pass `-ScheduleCron ''` on preparation
+and later access passes; this overrides an environment cron. An assessment run
+is default-off. Select `-ValidatePipelineRun $true` (or the explicit environment
+setting) only when the final plan should also request that run.
+
+## Phase 3: aggregate access plan, then application
 
 Run `./scripts/Setup-PostDeploy.ps1` without apply flags. It verifies direct Azure
 deployment outputs/ownership and exact ADO project, repository, endpoint,
 Application SP, FIC, pipeline definition and branch. The plan includes:
 
 - Current/desired/missing Graph application roles and optional capabilities
-- Runtime Azure Reader, Storage Blob Data Contributor and optional Website
-  Contributor, plus operator Storage Blob Data Reader
+- Runtime Azure Reader at the exact deployment resource group, Storage Blob
+  Data Contributor at the exact storage account and optional Website Contributor
+  at the exact Web App, plus operator Storage Blob Data Reader at that storage
+  account
 - Selected Exchange, Teams and Azure Reader grants
 - Selected Easy Auth application, exact security group, delegated consent delta
   and auth settings
-- ADO endpoint/repository pipeline authorization. This preserves the existing
-  template's project-wide `allPipelines` behavior; a new grant explicitly exposes
-  the endpoint/repository to every pipeline in that exact project
-- Exact rendered pipeline/runtime file hashes, repository, YAML path, branch,
-  schedule, current branch object ID, pipeline definition revision and requested
-  validation run. Publication, missing-definition creation and queuing each
-  require approval even when every access grant already exists
+- ADO endpoint/repository authorization for only the exact selected pipeline
+  ID. Project-wide `allPipelines` access must remain false. Existing grants to
+  other individual pipelines are preserved and included in the review; setup
+  refuses unexpected broad access rather than revoking it or silently accepting
+  a wider permission boundary
+- Exact current branch commit, pipeline definition ID/revision, selected
+  schedule and optional validation run. When `PushPipelineFiles` is enabled
+  (the default), the plan also includes the new rendered file hashes and a
+  publication action. Schedule activation, changes or disabling happen only
+  after approved access changes. Publication and queuing each require approval
+  even when every access grant already exists
+
+`IncludeAzure` is a separate, default-off workload option, independent of the
+Graph profile. When enabled without explicit `AzureScopes`, it selects Reader
+at the selected subscription; explicit scopes may be subscriptions or management
+groups. This optional broader scope is distinct from the always-planned Reader
+on the deployment resource group.
 
 No Graph/ARM/ADO write, environment receipt, file push or pipeline run happens
 in plan-only mode. Apply using `-Apply -ApprovedPlanHash <hash>`. An interactive
@@ -144,17 +177,26 @@ rebuilt and checked before the first write. Source, branch, identity, existing
 permission, target or optional-feature changes invalidate the approval.
 
 Only a verified current branch is used for a push; a concurrent change requires
-a new plan. Nonempty existing repositories must already have the selected
+a new plan. Updates to a deployment-owned repository retain a linked successor
+receipt with exact previous/new commits rather than overwriting the preparation
+receipt. An unchanged publication creates no successor. Explicit `-ScheduleCron
+''` with publication enabled removes the generated schedule on a later approved
+update. `-PushPipelineFiles $false` preserves remote files and their existing
+scheduling; it does not apply a requested local cron. This narrow update path
+does not adopt a shared repository or restore its history. Nonempty existing repositories must already have the selected
 branch. Existing pipelines must match the selected repo/YAML/default branch.
 The exact definition ID, revision and targets are checked again before reuse and
 at validation dispatch. The run API is called by exact ID and `pipelineVersion`,
 with the reviewed or newly published immutable repository commit, rather than a
 second name lookup. The emitted UTF-8 file bytes match the reviewed hashes; staged Git blobs are
 checked against raw files, and line-ending/filter transformations fail closed.
-An automatic publication failure before the remote push retains the manual-file
-fallback and blocks validation until a fresh review after manual publication.
+During final access setup, ordinary local Git failures before push may produce
+manual files and block validation until a fresh review after manual publication.
+Preparation failures and source/ownership conflicts stop without that fallback.
 Once a push has started, an unknown outcome leaves a pending ownership record
-and stops setup before pipeline creation or validation. Existing
+and stops setup before later pipeline actions. The preparation and final access
+stages remain separately approved; an earlier hash never approves a newly
+resolved pipeline or a later schedule. Existing
 private project/build artifacts and approved drift isolation remain unchanged.
 
 Azure setup dependencies (Az.Accounts and ADOPS, plus selected Exchange support)

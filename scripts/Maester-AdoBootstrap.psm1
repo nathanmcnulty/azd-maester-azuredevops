@@ -611,7 +611,10 @@ function Get-MaesterAdoPipelineInventory {
         $definition.project.id -ine $s.project.id -or $definition.repository.id -ine $s.repository.id -or
         $definition.process.yamlFilename.TrimStart('/') -cne $Configuration.yamlPath -or
         $definition.repository.defaultBranch -cne "refs/heads/$($Configuration.branch)") { throw 'Existing pipeline does not match the exact selected project, repository, YAML path and branch.' }
-    $pipeline = [ordered]@{ id = $definition.id; name = $definition.name; revision = $definition.revision; projectId = $s.project.id; repositoryId = $definition.repository.id; yamlPath = $definition.process.yamlFilename; branch = $definition.repository.defaultBranch }
+    $triggers = @()
+    $rawTriggers = Get-MaesterAdoProperty $definition 'triggers'
+    if ($null -ne $rawTriggers) { $triggers = @($rawTriggers) }
+    $pipeline = [ordered]@{ id = $definition.id; name = $definition.name; revision = $definition.revision; projectId = $s.project.id; repositoryId = $definition.repository.id; yamlPath = $definition.process.yamlFilename; branch = $definition.repository.defaultBranch; queueStatus = [string](Get-MaesterAdoProperty $definition 'queueStatus' ''); triggers = $triggers }
   }
   $refs = @(Get-MaesterAdoCollection -Uri "$($s.root)/git/repositories/$($s.repository.id)/refs?filter=$([uri]::EscapeDataString('heads/' + $Configuration.branch))&api-version=7.1" -TenantId $Parameters.TenantId | Where-Object { $_.name -ceq "refs/heads/$($Configuration.branch)" })
   if ($refs.Count -gt 1 -or ($refs.Count -eq 1 -and $refs[0].objectId -cnotmatch '^[a-f0-9]{40}$')) { throw 'Selected branch inventory is ambiguous or malformed.' }
@@ -634,31 +637,91 @@ function Assert-MaesterAdoPipelineBinding {
   } elseif ($current) { throw 'A pipeline appeared after the reviewed creation plan; review a fresh plan.' }
   return $current
 }
+function Get-MaesterAdoPipelinePreparationPlan {
+  param([Parameter(Mandatory)]$Identity, [Parameter(Mandatory)][hashtable]$Configuration,
+    [Parameter(Mandatory)][hashtable]$Parameters)
+  $pipelineInventory = Get-MaesterAdoPipelineInventory -Identity $Identity -Configuration $Configuration -Parameters $Parameters
+  if ($pipelineInventory.pipeline) { throw 'Pipeline preparation requires a fresh pipeline name; an existing definition is never replaced or republished.' }
+  if (-not $Configuration.pushFiles) { throw 'Fresh pipeline preparation requires reviewed runtime file publication. Use PushPipelineFiles=true.' }
+  $creation = @{ method = 'POST'; uri = "$($Identity.snapshot.root)/pipelines?api-version=7.1"; body = @{ name = $Configuration.pipelineName; folder = '\'; configuration = @{ type = 'yaml'; path = "/$($Configuration.yamlPath)"; repository = @{ id = $Identity.snapshot.repository.id; type = 'azureReposGit' } } } }
+  $actions = @("RepositoryPublish:$($Identity.snapshot.repository.id):$($Configuration.branch)", "PipelineCreate:$($Configuration.pipelineName)")
+  New-MaesterConsentPlan -TenantId $Parameters.TenantId -PrincipalObjectId $Identity.principalId -Capability 'AdoPipelinePreparation' `
+    -ManifestVersion '1.0' -ManifestSha256 ((Get-FileHash $PSCommandPath -Algorithm SHA256).Hash.ToLowerInvariant()) `
+    -Desired $actions -Missing $actions -Details @{
+      setupClientId = $env:MAESTER_SETUP_CLIENT_ID; setupAccount = $env:MAESTER_SETUP_ACCOUNT
+      inventory = $Identity.inventory; pipelineInventory = $pipelineInventory; pipelineConfiguration = $Configuration; pipelineCreation = $creation
+      nextStep = 'Publish only these reviewed files and create one unrun pipeline without CI, PR or scheduled triggers. Stop and review a fresh setup access plan binding its exact ID, revision and source commit. No access grants or run are authorized.'
+    }
+}
+function Invoke-MaesterAdoPipelineCreation {
+  param([Parameter(Mandatory)]$Plan, [Parameter(Mandatory)][string]$ApprovedPlanHash, [Parameter(Mandatory)][hashtable]$Parameters)
+  if ($Plan.capability -cne 'AdoPipelinePreparation' -or $ApprovedPlanHash -cne $Plan.planHash) { throw 'Exact pipeline preparation approval is required before definition creation.' }
+  Assert-MaesterConsentPlanApproval -Plan $Plan -ApprovedPlanHash $ApprovedPlanHash
+  $creation = $Plan.details.pipelineCreation
+  Invoke-MaesterAdoRequest -Uri $creation.uri -TenantId $Parameters.TenantId -Method $creation.method -Body $creation.body
+}
+function Get-MaesterAdoPermissionState {
+  param([Parameter(Mandatory)]$Permissions)
+  $all = Get-MaesterAdoProperty (Get-MaesterAdoProperty $Permissions 'allPipelines') 'authorized'
+  $pipelines = Get-MaesterAdoProperty $Permissions 'pipelines'
+  if ($all -isnot [bool] -or $null -eq $pipelines -or $pipelines -isnot [array]) { throw 'Unreadable Azure DevOps pipeline authorization inventory.' }
+  if ($all) { throw 'Unexpected all-pipelines authorization is broader than the exact selected pipeline. Review and remove broad access separately before setup.' }
+  $ids = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+  $values = @()
+  foreach ($pipeline in $pipelines) {
+    $id = [string](Get-MaesterAdoProperty $pipeline 'id')
+    $authorized = Get-MaesterAdoProperty $pipeline 'authorized'
+    if ($id -cnotmatch '^[1-9][0-9]*$' -or $authorized -isnot [bool] -or -not $ids.Add($id)) { throw 'Malformed or ambiguous Azure DevOps pipeline authorization inventory.' }
+    $values += [ordered]@{ id = $id; authorized = $authorized }
+  }
+  [ordered]@{ allPipelines = @{ authorized = $false }; pipelines = @($values | Sort-Object { [long]$_.id }) }
+}
+function Test-MaesterAdoPermissionStateEqual {
+  param($Actual, $Expected)
+  $actualValues = @($Actual.pipelines | ForEach-Object { "$($_.id):$($_.authorized)" }) -join ','
+  $expectedValues = @($Expected.pipelines | ForEach-Object { "$($_.id):$($_.authorized)" }) -join ','
+  return $actualValues -ceq $expectedValues
+}
 function Get-MaesterAdoAccessDelta {
-  param($Identity, [hashtable]$Parameters)
+  param($Identity, [hashtable]$Parameters, [Parameter(Mandatory)]$Pipeline)
   $s = $Identity.snapshot
-  $operations = @(); $inventory = [ordered]@{}
+  $pipelineId = [string]$Pipeline.id
+  if ($pipelineId -cnotmatch '^[1-9][0-9]*$' -or $Pipeline.projectId -ine $s.project.id -or $Pipeline.repositoryId -ine $s.repository.id) { throw 'Exact verified pipeline ID, project and repository are required before access planning.' }
+  $operations = @(); $inventory = [ordered]@{}; $resourceUris = [ordered]@{}
   foreach ($resource in @(@{ type = 'endpoint'; id = $s.endpoint.id }, @{ type = 'repository'; id = "$($s.project.id).$($s.repository.id)" })) {
     $uri = "$($s.root)/pipelines/pipelinePermissions/$($resource.type)/$($resource.id)?api-version=7.1-preview.1"
-    $permissions = Invoke-MaesterAdoRequest -Uri $uri -TenantId $Parameters.TenantId
-    if ($null -eq (Get-MaesterAdoProperty $permissions 'allPipelines') -or $null -eq (Get-MaesterAdoProperty $permissions.allPipelines 'authorized')) { throw 'Unreadable Azure DevOps pipeline authorization inventory.' }
+    $permissions = Get-MaesterAdoPermissionState (Invoke-MaesterAdoRequest -Uri $uri -TenantId $Parameters.TenantId)
     $inventory[$resource.type] = $permissions
-    if ($permissions.allPipelines.authorized -ne $true) {
-      $operations += @{ method = 'PATCH'; uri = $uri; body = @{ allPipelines = @{ authorized = $true }; pipelines = @() }; resourceType = $resource.type; resourceId = $resource.id; organizationId = $s.organization.id; projectId = $s.project.id; repositoryId = $s.repository.id; consequence = "Authorize every pipeline in the exact selected project to use this $($resource.type)." }
+    $resourceUris[$resource.type] = $uri
+    $selected = @($permissions.pipelines | Where-Object { $_.id -ceq $pipelineId -and $_.authorized })
+    if ($selected.Count -eq 0) {
+      # The PATCH is an exact per-pipeline delta, not a replacement list. All
+      # unrelated existing pipeline authorizations remain untouched.
+      $operations += @{ method = 'PATCH'; uri = $uri; body = @{ pipelines = @(@{ id = [long]$pipelineId; authorized = $true }) }; pipelineId = $pipelineId
+        resourceType = $resource.type; resourceId = $resource.id; organizationId = $s.organization.id; projectId = $s.project.id; repositoryId = $s.repository.id
+        consequence = "Authorize only pipeline $pipelineId to use this exact $($resource.type); preserve unrelated pipeline grants." }
     }
   }
-  [ordered]@{ inventory = $inventory; operations = $operations; consequence = 'Existing project-wide pipeline access is preserved; newly needed project-wide access requires exact aggregate plan approval.' }
+  [ordered]@{ pipelineId = $pipelineId; inventory = $inventory; resourceUris = $resourceUris; operations = $operations; consequence = 'Only the exact selected pipeline is authorized. Broad all-pipelines access is rejected and unrelated existing per-pipeline grants are preserved.' }
 }
 function Invoke-MaesterAdoAccessDelta {
   param($Delta, [hashtable]$Parameters, $OwnershipSession, [string]$ApprovedPlanHash)
   if (-not $OwnershipSession) { throw 'An open ownership journal session is required before ADO authorization.' }
+  # Recheck even already-authorized resources after Graph/ARM work. A no-op
+  # grant does not permit later publication under newly broadened ADO access.
+  foreach ($resourceType in $Delta.inventory.Keys) {
+    $live = Get-MaesterAdoPermissionState (Invoke-MaesterAdoRequest -Uri $Delta.resourceUris[$resourceType] -TenantId $Parameters.TenantId)
+    if (-not (Test-MaesterAdoPermissionStateEqual $live $Delta.inventory[$resourceType])) { throw 'Azure DevOps pipeline authorization changed after approval; review a fresh plan.' }
+  }
   foreach ($op in $Delta.operations) {
     $old = $Delta.inventory[$op.resourceType]
-    $before = @{ allPipelinesAuthorized = [bool]$old.allPipelines.authorized
-      pipelineIds = @($old.pipelines | Where-Object { $_.authorized -eq $true } | ForEach-Object { [string]$_.id }) }
-    $args = @{ Session = $OwnershipSession; Key = "Authorization:$($op.resourceType):$($op.resourceId)"; Kind = 'AdoPipelineAuthorization'
-      PlanHash = $ApprovedPlanHash; Ownership = 'Mutation'; Expected = @{ organizationId = $op.organizationId; projectId = $op.projectId; resourceType = $op.resourceType; resourceId = $op.resourceId }
-      Before = $before; After = @{ allPipelinesAuthorized = $true; pipelineIds = @() } }
+    $live = Get-MaesterAdoPermissionState (Invoke-MaesterAdoRequest -Uri $op.uri -TenantId $Parameters.TenantId)
+    if (-not (Test-MaesterAdoPermissionStateEqual $live $old)) { throw 'Azure DevOps pipeline authorization changed after approval; review a fresh plan.' }
+    $beforeIds = @($old.pipelines | Where-Object authorized | ForEach-Object { [string]$_.id })
+    $afterIds = @($beforeIds + [string]$op.pipelineId | Sort-Object -Unique)
+    $args = @{ Session = $OwnershipSession; Key = "Authorization:$($op.resourceType):$($op.resourceId):$($op.pipelineId)"; Kind = 'AdoPipelineAuthorization'
+      PlanHash = $ApprovedPlanHash; Ownership = 'Mutation'; Expected = @{ organizationId = $op.organizationId; projectId = $op.projectId; resourceType = $op.resourceType; resourceId = $op.resourceId; pipelineId = [string]$op.pipelineId }
+      Before = @{ allPipelinesAuthorized = $false; pipelineIds = $beforeIds }; After = @{ allPipelinesAuthorized = $false; pipelineIds = $afterIds } }
     $parent = if ($op.resourceType -eq 'endpoint') {
       Find-MaesterOwnedOperationId -Session $OwnershipSession -Kind AdoServiceConnection -IdField serviceConnectionId -Id $op.resourceId
     } else { Find-MaesterOwnedOperationId -Session $OwnershipSession -Kind AdoRepository -IdField repositoryId -Id $op.repositoryId }
@@ -666,11 +729,14 @@ function Invoke-MaesterAdoAccessDelta {
     $operationId = (Start-MaesterOwnedOperation @args).operationId
     $null = Invoke-MaesterAdoRequest -Uri $op.uri -TenantId $Parameters.TenantId -Method $op.method -Body $op.body
     Complete-MaesterOwnedOperation -Session $OwnershipSession -OperationId $operationId -ExactIds @{ resourceId = $op.resourceId } | Out-Null
-    $readback = Invoke-MaesterAdoRequest -Uri $op.uri -TenantId $Parameters.TenantId
-    if ($readback.allPipelines.authorized -ne $true) {
+    try {
+      $readback = Get-MaesterAdoPermissionState (Invoke-MaesterAdoRequest -Uri $op.uri -TenantId $Parameters.TenantId)
+      $observedIds = @($readback.pipelines | Where-Object authorized | ForEach-Object { [string]$_.id } | Sort-Object -Unique)
+      if (($observedIds -join ',') -cne ($afterIds -join ',')) { throw 'Azure DevOps exact pipeline authorization could not be verified without changing unrelated grants.' }
+    } catch {
       Set-MaesterOwnedOperationState -Session $OwnershipSession -OperationId $operationId -State conflict | Out-Null
-      throw 'Azure DevOps pipeline authorization could not be verified.'
+      throw
     }
   }
 }
-Export-ModuleMember -Function Get-MaesterApplicationCreationBaseline, Assert-MaesterApplicationCreationState, Assert-MaesterOwnershipApplyReady, Get-MaesterOwnershipOperationKey, Get-MaesterAdoOwnershipBinding, Find-MaesterOwnedOperationId, Get-MaesterAdoBootstrapPlan, Invoke-MaesterAdoBootstrapPlan, Get-MaesterAdoIdentity, Get-MaesterAdoAccessDelta, Invoke-MaesterAdoAccessDelta, Get-MaesterAdoPipelineInventory, Assert-MaesterAdoPipelineBinding
+Export-ModuleMember -Function Get-MaesterApplicationCreationBaseline, Assert-MaesterApplicationCreationState, Assert-MaesterOwnershipApplyReady, Get-MaesterOwnershipOperationKey, Get-MaesterAdoOwnershipBinding, Find-MaesterOwnedOperationId, Get-MaesterAdoBootstrapPlan, Invoke-MaesterAdoBootstrapPlan, Get-MaesterAdoIdentity, Get-MaesterAdoAccessDelta, Invoke-MaesterAdoAccessDelta, Get-MaesterAdoPipelineInventory, Assert-MaesterAdoPipelineBinding, Get-MaesterAdoPipelinePreparationPlan, Invoke-MaesterAdoPipelineCreation

@@ -27,9 +27,10 @@ Describe 'Azure DevOps runtime bootstrap and exact federation boundary' {
       $script:state = @{
         project = [pscustomobject]@{ id = '33333333-3333-4333-8333-333333333333'; name = 'project'; state = 'wellFormed' }
         repository = $null; endpoint = $null; application = $null; principal = $null; federations = @()
-        writes = [Collections.Generic.List[object]]::new(); badCollection = $false; paginated = $false; roles = @(); directoryRoles = @()
+        permissions = @{}; writes = [Collections.Generic.List[object]]::new(); badCollection = $false; paginated = $false; roles = @(); directoryRoles = @()
       }
       $script:repo = [pscustomobject]@{ id = '44444444-4444-4444-8444-444444444444'; name = 'repo'; project = $script:state.project; remoteUrl = 'https://dev.azure.com/org/project/_git/repo' }
+      $script:pipeline = [pscustomobject]@{ id = 17; projectId = $script:state.project.id; repositoryId = $script:repo.id }
       $script:endpoint = [pscustomobject]@{
         id = '55555555-5555-4555-8555-555555555555'; name = 'connection'; type = 'AzureRM'; url = 'https://management.azure.com/'; isReady = $true; isShared = $false
         data = [pscustomobject]@{ subscriptionId = $script:parameters.SubscriptionId; isDraft = $false }
@@ -47,11 +48,20 @@ Describe 'Azure DevOps runtime bootstrap and exact federation boundary' {
           if ($Uri -like '*/git/repositories?*') { $script:state.repository = $script:repo; return $script:repo }
           if ($Uri.Contains('/serviceendpoint/endpoints?')) { $script:state.endpoint = $script:endpoint | ConvertTo-Json -Depth 20 | ConvertFrom-Json; $script:state.endpoint.authorization.parameters.serviceprincipalid = ''; $script:state.endpoint.data.isDraft = $true; return $script:state.endpoint }
           if ($Uri -like '*/serviceendpoint/endpoints/*') { $script:state.endpoint = $Body | ConvertTo-Json -Depth 20 | ConvertFrom-Json; return $script:state.endpoint }
-          if ($Uri -like '*/pipelinePermissions/*') { return [pscustomobject]@{ allPipelines = @{ authorized = $true } } }
+          if ($Uri -like '*/pipelinePermissions/*') {
+            $prior = if ($script:state.permissions.ContainsKey($Uri)) { $script:state.permissions[$Uri].pipelines } else { @() }
+            $selectedIds = @($Body.pipelines | ForEach-Object { [string]$_.id })
+            $all = if ($script:state.permissions.ContainsKey($Uri)) { $script:state.permissions[$Uri].allPipelines.authorized } else { $false }
+            $script:state.permissions[$Uri] = [pscustomobject]@{ allPipelines = @{ authorized = $all }; pipelines = @($prior | Where-Object { [string]$_.id -notin $selectedIds }) + @($Body.pipelines) }
+            return $script:state.permissions[$Uri]
+          }
           throw "Unexpected ADO write $Method $Uri"
         }
         if ($Uri -like '*/projects/project?*') { return $script:state.project }
-        if ($Uri -like '*/pipelinePermissions/*') { return [pscustomobject]@{ allPipelines = @{ authorized = $true }; pipelines = @() } }
+        if ($Uri -like '*/pipelinePermissions/*') {
+          if ($script:state.permissions.ContainsKey($Uri)) { return $script:state.permissions[$Uri] }
+          return [pscustomobject]@{ allPipelines = @{ authorized = $false }; pipelines = @() }
+        }
         $values = if ($Uri -like '*/git/repositories?*') { @($script:state.repository | Where-Object { $_ }) } elseif ($Uri.Contains('/serviceendpoint/endpoints?')) { @($script:state.endpoint | Where-Object { $_ }) } else { throw "Unexpected ADO read $Uri" }
         if ($script:state.badCollection) { return [pscustomobject]@{} }
         $response = [pscustomobject]@{ value = @($values) }
@@ -405,15 +415,22 @@ Describe 'Azure DevOps runtime bootstrap and exact federation boundary' {
     InModuleScope Maester-AdoBootstrap -Parameters @{ ownership = $_ } {
       $state.repository = $repo; $state.endpoint = $endpoint; $state.application = $app; $state.principal = $sp; $state.federations = @($fic)
       $identity = Get-MaesterAdoIdentity @parameters
-      $state.authorized = @{}
       Mock Invoke-MaesterAdoRequest {
+        if (-not $script:state.permissions.ContainsKey($Uri)) {
+          $script:state.permissions[$Uri] = [pscustomobject]@{ allPipelines = @{ authorized = $false }; pipelines = @(@{ id = 99; authorized = $true }, @{ id = 8; authorized = $false }, @{ id = 11; authorized = $true }) }
+        }
         if ($Method -eq 'PATCH') {
           $pending = @((Get-MaesterOwnershipJournal -Session $global:MaesterBootstrapTestSession).records | Where-Object { $_.kind -eq 'AdoPipelineAuthorization' -and $_.state -eq 'pending' })
           $pending.Count | Should -Be 1
-          $script:state.authorized[$Uri] = $true
-          $script:state.writes.Add([pscustomobject]@{ method = $Method; uri = $Uri })
+          $Body.Keys.Count | Should -Be 1
+          $Body.ContainsKey('allPipelines') | Should -BeFalse
+          @($Body.pipelines).Count | Should -Be 1
+          $Body.pipelines[0].id | Should -Be 17
+          $Body.pipelines[0].authorized | Should -BeTrue
+          $script:state.permissions[$Uri].pipelines += @($Body.pipelines)
+          $script:state.writes.Add([pscustomobject]@{ method = $Method; uri = $Uri; body = $Body })
         }
-        [pscustomobject]@{ allPipelines = @{ authorized = [bool]$script:state.authorized[$Uri] }; pipelines = @() }
+        $script:state.permissions[$Uri]
       } -ParameterFilter { $Uri -like '*/pipelinePermissions/*' }
       if ($ownership -eq 'owned') {
         foreach ($parent in @(@{ kind = 'AdoRepository'; field = 'repositoryId'; id = $repo.id }, @{ kind = 'AdoServiceConnection'; field = 'serviceConnectionId'; id = $endpoint.id })) {
@@ -421,7 +438,7 @@ Describe 'Azure DevOps runtime bootstrap and exact federation boundary' {
           Complete-MaesterOwnedOperation -Session $global:MaesterBootstrapTestSession -OperationId $record.operationId -ExactIds @{ ($parent.field) = $parent.id } | Out-Null
         }
       }
-      $delta = Get-MaesterAdoAccessDelta -Identity $identity -Parameters $parameters
+      $delta = Get-MaesterAdoAccessDelta -Identity $identity -Parameters $parameters -Pipeline $pipeline
       Invoke-MaesterAdoAccessDelta -Delta $delta -Parameters $parameters -OwnershipSession $global:MaesterBootstrapTestSession -ApprovedPlanHash ('a' * 64)
       $records = (Get-MaesterOwnershipJournal -Session $global:MaesterBootstrapTestSession).records
       $authorizations = @($records | Where-Object kind -eq AdoPipelineAuthorization)
@@ -429,15 +446,193 @@ Describe 'Azure DevOps runtime bootstrap and exact federation boundary' {
       ($authorizations | Where-Object { $_.expected.resourceType -eq 'repository' }).exactIds.resourceId | Should -BeExactly "$($state.project.id).$($repo.id)"
       foreach ($record in $authorizations) {
         $record.before.allPipelinesAuthorized | Should -BeFalse
-        $record.after.allPipelinesAuthorized | Should -BeTrue
+        $record.after.allPipelinesAuthorized | Should -BeFalse
+        $record.expected.pipelineId | Should -BeExactly '17'
+        $record.before.pipelineIds | Should -Be @('11', '99')
+        $record.after.pipelineIds | Should -Be @('11', '17', '99')
         if ($ownership -eq 'owned') { $record.state | Should -BeExactly applied; $record.coveredByOperationId | Should -Not -BeNullOrEmpty }
         else { $record.state | Should -BeExactly applied; $record.coveredByOperationId | Should -BeNullOrEmpty }
       }
-      $noop = Get-MaesterAdoAccessDelta -Identity $identity -Parameters $parameters
+      $noop = Get-MaesterAdoAccessDelta -Identity $identity -Parameters $parameters -Pipeline $pipeline
       @($noop.operations).Count | Should -Be 0
       Invoke-MaesterAdoAccessDelta -Delta $noop -Parameters $parameters -OwnershipSession $global:MaesterBootstrapTestSession -ApprovedPlanHash ('a' * 64)
       (Get-MaesterOwnershipJournal -Session $global:MaesterBootstrapTestSession).records.Count | Should -Be $records.Count
       $state.writes.Count | Should -Be 2
+    }
+  }
+  It 'rejects broad all-pipelines access on either selected resource before any writes: <resource>' -ForEach @('endpoint', 'repository') {
+    InModuleScope Maester-AdoBootstrap -Parameters @{ resource = $_ } {
+      $state.repository = $repo; $state.endpoint = $endpoint; $state.application = $app; $state.principal = $sp; $state.federations = @($fic)
+      $identity = Get-MaesterAdoIdentity @parameters
+      $resourceId = if ($resource -eq 'endpoint') { $endpoint.id } else { "$($state.project.id).$($repo.id)" }
+      $uri = "$($identity.snapshot.root)/pipelines/pipelinePermissions/$resource/${resourceId}?api-version=7.1-preview.1"
+      $state.permissions[$uri] = [pscustomobject]@{ allPipelines = @{ authorized = $true }; pipelines = @(@{ id = 17; authorized = $true }) }
+      { Get-MaesterAdoAccessDelta -Identity $identity -Parameters $parameters -Pipeline $pipeline } | Should -Throw '*all-pipelines authorization*'
+      $state.writes.Count | Should -Be 0
+      (Get-MaesterOwnershipJournal -Session $global:MaesterBootstrapTestSession).records.Count | Should -Be 0
+    }
+  }
+  It 'requires an exact verified pipeline binding before looking up permissions: <mode>' -ForEach @('missingId', 'invalidId', 'zeroId', 'wrongProject', 'wrongRepository') {
+    InModuleScope Maester-AdoBootstrap -Parameters @{ mode = $_ } {
+      $state.repository = $repo; $state.endpoint = $endpoint; $state.application = $app; $state.principal = $sp; $state.federations = @($fic)
+      $identity = Get-MaesterAdoIdentity @parameters
+      switch ($mode) {
+        missingId { $pipeline.PSObject.Properties.Remove('id') }
+        invalidId { $pipeline.id = '17 OR 1=1' }
+        zeroId { $pipeline.id = 0 }
+        wrongProject { $pipeline.projectId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' }
+        wrongRepository { $pipeline.repositoryId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' }
+      }
+      { Get-MaesterAdoAccessDelta -Identity $identity -Parameters $parameters -Pipeline $pipeline } | Should -Throw
+      Should -Invoke Invoke-MaesterAdoRequest -Times 0 -Exactly -ParameterFilter { $Uri -like '*/pipelinePermissions/*' }
+      $state.writes.Count | Should -Be 0
+    }
+  }
+  It 'rejects malformed or ambiguous exact authorization inventories: <mode>' -ForEach @('missingAll', 'stringAll', 'missingPipelines', 'scalarPipelines', 'invalidId', 'zeroId', 'duplicateId', 'conflictingDuplicate', 'stringAuthorized', 'missingAuthorized', 'nullEntry') {
+    InModuleScope Maester-AdoBootstrap -Parameters @{ mode = $_ } {
+      $state.repository = $repo; $state.endpoint = $endpoint; $state.application = $app; $state.principal = $sp; $state.federations = @($fic)
+      $identity = Get-MaesterAdoIdentity @parameters
+      $permission = [pscustomobject]@{ allPipelines = @{ authorized = $false }; pipelines = @(@{ id = 99; authorized = $true }) }
+      switch ($mode) {
+        missingAll { $permission.PSObject.Properties.Remove('allPipelines') }
+        stringAll { $permission.allPipelines.authorized = 'false' }
+        missingPipelines { $permission.PSObject.Properties.Remove('pipelines') }
+        scalarPipelines { $permission.pipelines = 'unreadable' }
+        invalidId { $permission.pipelines[0].id = 'invalid' }
+        zeroId { $permission.pipelines[0].id = 0 }
+        duplicateId { $permission.pipelines += @{ id = 99; authorized = $true } }
+        conflictingDuplicate { $permission.pipelines += @{ id = 99; authorized = $false } }
+        stringAuthorized { $permission.pipelines[0].authorized = 'true' }
+        missingAuthorized { $permission.pipelines[0].Remove('authorized') }
+        nullEntry { $permission.pipelines = @($null) }
+      }
+      $state.permissions["$($identity.snapshot.root)/pipelines/pipelinePermissions/endpoint/$($endpoint.id)?api-version=7.1-preview.1"] = $permission
+      { Get-MaesterAdoAccessDelta -Identity $identity -Parameters $parameters -Pipeline $pipeline } | Should -Throw '*authorization inventory*'
+      $state.writes.Count | Should -Be 0
+      (Get-MaesterOwnershipJournal -Session $global:MaesterBootstrapTestSession).records.Count | Should -Be 0
+    }
+  }
+  It 'normalizes reordered numeric permissions and changes only the selected pipeline authorization' {
+    InModuleScope Maester-AdoBootstrap {
+      $state.repository = $repo; $state.endpoint = $endpoint; $state.application = $app; $state.principal = $sp; $state.federations = @($fic)
+      $identity = Get-MaesterAdoIdentity @parameters
+      foreach ($resource in @(@{ type = 'endpoint'; id = $endpoint.id }, @{ type = 'repository'; id = "$($state.project.id).$($repo.id)" })) {
+        $state.permissions["$($identity.snapshot.root)/pipelines/pipelinePermissions/$($resource.type)/$($resource.id)?api-version=7.1-preview.1"] = [pscustomobject]@{ allPipelines = @{ authorized = $false }; pipelines = @(@{ id = 99; authorized = $true }, @{ id = 17; authorized = $false }, @{ id = 8; authorized = $false }) }
+      }
+      $delta = Get-MaesterAdoAccessDelta -Identity $identity -Parameters $parameters -Pipeline $pipeline
+      $delta.inventory.endpoint.pipelines.id | Should -Be @('8', '17', '99')
+      $delta.inventory.endpoint.pipelines[1].authorized | Should -BeFalse
+      # Ordering and JSON number/string representations have no authority meaning.
+      foreach ($uri in @($state.permissions.Keys)) { $state.permissions[$uri].pipelines = @(@{ id = '8'; authorized = $false }, @{ id = '99'; authorized = $true }, @{ id = '17'; authorized = $false }) }
+      Invoke-MaesterAdoAccessDelta -Delta $delta -Parameters $parameters -OwnershipSession $global:MaesterBootstrapTestSession -ApprovedPlanHash ('a' * 64)
+      $state.writes.Count | Should -Be 2
+      foreach ($write in $state.writes) {
+        $write.method | Should -BeExactly PATCH
+        $write.body.Keys.Count | Should -Be 1
+        $write.body.ContainsKey('allPipelines') | Should -BeFalse
+        @($write.body.pipelines).Count | Should -Be 1
+        $write.body.pipelines[0].id | Should -Be 17
+        $write.body.pipelines[0].authorized | Should -BeTrue
+        $observed = $state.permissions[$write.uri]
+        @($observed.pipelines | Where-Object { [string]$_.id -ceq '99' -and $_.authorized }).Count | Should -Be 1
+        @($observed.pipelines | Where-Object { [string]$_.id -ceq '8' -and -not $_.authorized }).Count | Should -Be 1
+      }
+    }
+  }
+  It 'records conflicts and stops before authorizing later resources on contradictory readback: <mode>' -ForEach @('broadAccess', 'lostUnrelatedGrant', 'selectedMissing', 'unexpectedGrant') {
+    InModuleScope Maester-AdoBootstrap -Parameters @{ mode = $_ } {
+      $state.repository = $repo; $state.endpoint = $endpoint; $state.application = $app; $state.principal = $sp; $state.federations = @($fic)
+      $identity = Get-MaesterAdoIdentity @parameters
+      $state.readbackMode = $mode
+      Mock Invoke-MaesterAdoRequest {
+        if ($Method -eq 'PATCH') {
+          $script:state.writes.Add([pscustomobject]@{ method = $Method; uri = $Uri; body = $Body })
+        }
+        $values = @(@{ id = 99; authorized = $true })
+        $all = $false
+        if ($script:state.writes.Count -gt 0) {
+          $values += @{ id = 17; authorized = $true }
+          switch ($script:state.readbackMode) {
+            broadAccess { $all = $true }
+            lostUnrelatedGrant { $values = @(@{ id = 17; authorized = $true }) }
+            selectedMissing { $values = @(@{ id = 99; authorized = $true }) }
+            unexpectedGrant { $values += @{ id = 100; authorized = $true } }
+          }
+        }
+        [pscustomobject]@{ allPipelines = @{ authorized = $all }; pipelines = $values }
+      } -ParameterFilter { $Uri -like '*/pipelinePermissions/*' }
+      $delta = Get-MaesterAdoAccessDelta -Identity $identity -Parameters $parameters -Pipeline $pipeline
+      @($delta.operations).Count | Should -Be 2
+      { Invoke-MaesterAdoAccessDelta -Delta $delta -Parameters $parameters -OwnershipSession $global:MaesterBootstrapTestSession -ApprovedPlanHash ('a' * 64) } | Should -Throw
+      $state.writes.Count | Should -Be 1
+      $state.writes[0].uri | Should -Match '/pipelinePermissions/endpoint/'
+      Should -Invoke Invoke-MaesterAdoRequest -Times 0 -Exactly -ParameterFilter { $Method -eq 'PATCH' -and $Uri -like '*/pipelinePermissions/repository/*' }
+      $records = (Get-MaesterOwnershipJournal -Session $global:MaesterBootstrapTestSession).records
+      $records.Count | Should -Be 1
+      $records[0].state | Should -BeExactly conflict
+      $records[0].expected.pipelineId | Should -BeExactly '17'
+      $records[0].before.pipelineIds | Should -Be @('99')
+      $records[0].after.pipelineIds | Should -Be @('17', '99')
+      $records[0].exactIds.resourceId | Should -BeExactly $endpoint.id
+    }
+  }
+  It 'never clears a concurrent broad grant and stops on its post-PATCH readback' {
+    InModuleScope Maester-AdoBootstrap {
+      $state.repository = $repo; $state.endpoint = $endpoint; $state.application = $app; $state.principal = $sp; $state.federations = @($fic)
+      $identity = Get-MaesterAdoIdentity @parameters
+      $state.racingBroadGrant = $false; $state.selectedGranted = $false
+      Mock Invoke-MaesterAdoRequest {
+        if ($Method -eq 'PATCH') {
+          # Another administrator broadens access after the final GET. Model
+          # ADO's partial update semantics so writing allPipelines=false here
+          # would silently overwrite their concurrently changed grant.
+          $script:state.racingBroadGrant = $true
+          if ($Body.ContainsKey('allPipelines')) { $script:state.racingBroadGrant = $Body.allPipelines.authorized }
+          $script:state.selectedGranted = $Body.pipelines[0].authorized
+          $script:state.writes.Add([pscustomobject]@{ method = $Method; uri = $Uri; body = $Body })
+        }
+        $values = @(@{ id = 99; authorized = $true })
+        if ($script:state.selectedGranted) { $values += @{ id = 17; authorized = $true } }
+        [pscustomobject]@{ allPipelines = @{ authorized = $script:state.racingBroadGrant }; pipelines = $values }
+      } -ParameterFilter { $Uri -like '*/pipelinePermissions/*' }
+      $delta = Get-MaesterAdoAccessDelta -Identity $identity -Parameters $parameters -Pipeline $pipeline
+      { Invoke-MaesterAdoAccessDelta -Delta $delta -Parameters $parameters -OwnershipSession $global:MaesterBootstrapTestSession -ApprovedPlanHash ('a' * 64) } | Should -Throw '*all-pipelines authorization*'
+      $state.racingBroadGrant | Should -BeTrue
+      $state.selectedGranted | Should -BeTrue
+      $state.writes.Count | Should -Be 1
+      $state.writes[0].body.Keys.Count | Should -Be 1
+      $state.writes[0].body.ContainsKey('allPipelines') | Should -BeFalse
+      @($state.writes[0].body.pipelines).Count | Should -Be 1
+      $state.writes[0].body.pipelines[0].id | Should -Be 17
+      Should -Invoke Invoke-MaesterAdoRequest -Times 0 -Exactly -ParameterFilter { $Method -eq 'PATCH' -and $Uri -like '*/pipelinePermissions/repository/*' }
+      $records = (Get-MaesterOwnershipJournal -Session $global:MaesterBootstrapTestSession).records
+      $records.Count | Should -Be 1
+      $records[0].state | Should -BeExactly conflict
+      $records[0].exactIds.resourceId | Should -BeExactly $endpoint.id
+    }
+  }
+  It 'rejects authorization drift immediately before the first PATCH without writing or claiming ownership' {
+    InModuleScope Maester-AdoBootstrap {
+      $state.repository = $repo; $state.endpoint = $endpoint; $state.application = $app; $state.principal = $sp; $state.federations = @($fic)
+      $identity = Get-MaesterAdoIdentity @parameters
+      $delta = Get-MaesterAdoAccessDelta -Identity $identity -Parameters $parameters -Pipeline $pipeline
+      $state.permissions[$delta.operations[0].uri] = [pscustomobject]@{ allPipelines = @{ authorized = $false }; pipelines = @(@{ id = 99; authorized = $true }) }
+      { Invoke-MaesterAdoAccessDelta -Delta $delta -Parameters $parameters -OwnershipSession $global:MaesterBootstrapTestSession -ApprovedPlanHash ('a' * 64) } | Should -Throw '*changed after approval*'
+      $state.writes.Count | Should -Be 0
+      (Get-MaesterOwnershipJournal -Session $global:MaesterBootstrapTestSession).records.Count | Should -Be 0
+    }
+  }
+  It 'performs no authorization writes or ownership claims when the exact pipeline is already granted' {
+    InModuleScope Maester-AdoBootstrap {
+      $state.repository = $repo; $state.endpoint = $endpoint; $state.application = $app; $state.principal = $sp; $state.federations = @($fic)
+      $identity = Get-MaesterAdoIdentity @parameters
+      Mock Invoke-MaesterAdoRequest { [pscustomobject]@{ allPipelines = @{ authorized = $false }; pipelines = @(@{ id = 99; authorized = $true }, @{ id = 17; authorized = $true }) } } -ParameterFilter { $Uri -like '*/pipelinePermissions/*' }
+      $delta = Get-MaesterAdoAccessDelta -Identity $identity -Parameters $parameters -Pipeline $pipeline
+      $delta.pipelineId | Should -BeExactly '17'
+      @($delta.operations).Count | Should -Be 0
+      Invoke-MaesterAdoAccessDelta -Delta $delta -Parameters $parameters -OwnershipSession $global:MaesterBootstrapTestSession -ApprovedPlanHash ('a' * 64)
+      $state.writes.Count | Should -Be 0
+      (Get-MaesterOwnershipJournal -Session $global:MaesterBootstrapTestSession).records.Count | Should -Be 0
     }
   }
 

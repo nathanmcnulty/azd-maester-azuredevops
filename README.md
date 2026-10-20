@@ -21,8 +21,9 @@ After `azd init -t nathanmcnulty/azd-maester-azuredevops`, run from the template
 
 Before setup, an administrator must prepare the dedicated setup public client.
 Postprovision is read-only by default. Fresh runtime identity creation uses
-separately reviewed bootstrap stages; access changes require a fresh aggregate
-plan hash. Follow [setup and consent](docs/setup-consent.md) for the complete
+separately reviewed bootstrap stages, followed by an approved unrun-pipeline
+preparation stage. Access changes then require a fresh aggregate plan hash
+bound to that exact pipeline ID. Follow [setup and consent](docs/setup-consent.md) for the complete
 scope union, bootstrap and apply commands. Existing runtime identities keep
 workload federation and do not receive permission-management authority.
 
@@ -56,7 +57,11 @@ For fresh environments, `preprovision` creates the selected absent dedicated res
 - Separately approves Full27, Minimal8 or explicit legacy Extended19 Graph reads
 - Keeps mail, report-setting writes, Exchange, Teams, Azure and Easy Auth optional
 - Revalidates the aggregate delta and rendered source hashes before applying
-- Pushes reviewed runtime files and creates/reuses the exact selected pipeline
+- Activates the chosen schedule only after separately approved exact-pipeline
+  access; explicit validation runs are default-off
+- Separately prepares reviewed runtime files and an exact unrun pipeline
+- Authorizes only that pipeline to use its endpoint and repository; project-wide
+  pipeline access is rejected
 - Preserves existing private reports and default-off isolated approved drift
 
 Existing repositories are preserved by teardown; only repositories created by

@@ -295,17 +295,17 @@ function Get-MaesterSetupAccessPlan {
     includeMailSend = $IncludeMailSend; includeReportSettingsWrite = $IncludeReportSettingsWrite
     azureScopes = @($AzureScopes | Sort-Object -Unique); easyAuth = $easyAuth; inventory = $inventory; operations = @($operations.ToArray())
   }
-  $adoAccess = Get-MaesterAdoAccessDelta -Identity $ado -Parameters $AdoParameters
-  $details['adoAccess'] = $adoAccess
   $details['pipelineInventory'] = Get-MaesterAdoPipelineInventory -Identity $ado -Configuration $PipelineConfiguration -Parameters $AdoParameters
+  if (-not $details.pipelineInventory.pipeline) { throw 'Create the unrun pipeline with a separately approved preparation plan before setup access.' }
+  $adoAccess = Get-MaesterAdoAccessDelta -Identity $ado -Parameters $AdoParameters -Pipeline $details.pipelineInventory.pipeline
+  $details['adoAccess'] = $adoAccess
   $operationValues = @($operations | ForEach-Object { "$($_.method):$($_.uri)" })
   $adoOperations = @($adoAccess.operations | ForEach-Object { "$($_.method):$($_.uri)" })
-  # Publication, definition creation and queuing are consequential actions even
+  # Publication and queuing are consequential actions even
   # when every permission is already present. They must never take the no-delta
   # interactive auto-approval path. Hashes/targets remain in the details above.
   $pipelineActions = @()
   if (Get-MaesterSetupProperty $PipelineConfiguration 'pipelineName') {
-    if (-not $details.pipelineInventory.pipeline) { $pipelineActions += "PipelineCreate:$($PipelineConfiguration.pipelineName)" }
     if ($PipelineConfiguration.pushFiles) { $pipelineActions += "RepositoryPublish:$($PipelineConfiguration.repositoryId):$($PipelineConfiguration.branch)" }
     if ($PipelineConfiguration.validateRun) { $pipelineActions += "PipelineRun:$($PipelineConfiguration.pipelineName):$($PipelineConfiguration.branch)" }
   }
@@ -559,6 +559,9 @@ function Invoke-MaesterSetupAccessPlan {
       }
     }
   }
+  $adoParameters = $PlanParameters.AdoParameters
+  $livePipeline = Get-MaesterAdoPipelineInventory -Identity (Get-MaesterAdoIdentity @adoParameters) -Configuration $PlanParameters.PipelineConfiguration -Parameters $PlanParameters.AdoParameters
+  if (-not (Test-MaesterSetupDesiredState -Actual $livePipeline -Desired $plan.details.pipelineInventory)) { throw 'Exact pipeline or source changed after approval; no ADO authorization was attempted.' }
   Invoke-MaesterAdoAccessDelta -Delta $plan.details.adoAccess -Parameters $PlanParameters.AdoParameters -OwnershipSession $OwnershipSession -ApprovedPlanHash $plan.planHash
   [pscustomobject]@{ Plan = $plan; Receipts = $receipts; EasyAuth = $easyAuth; PrincipalDisplayName = $plan.details.inventory.principal.displayName }
 }

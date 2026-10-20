@@ -8,7 +8,8 @@ The journal binds the environment, tenant, subscription, resource group, setup c
 
 - New repositories, service connections, runtime and Easy Auth applications/service principals, federated credentials and pipelines
 - Individual new Graph, Exchange, Teams and Azure role assignments, including grants on adopted principals
-- Exact pipeline authorization changes and endpoint binding changes
+- Exact per-pipeline authorization changes, with preserved individual grants,
+  and endpoint binding changes
 - Sanitized Easy Auth configuration and delegated-consent scope changes
 - Publication repository/branch, reviewed paths, and before/after commit IDs
 - New application creation baselines: redirect and identifier URIs, group claims, implicit-token flags and sign-in audience
@@ -27,7 +28,7 @@ Individual new grants and federated credentials on a reused application are reco
 
 Successfully acknowledged changes to shared or adopted objects are recorded as applied mutations with sanitized before/after metadata and no owned-parent link. This records a known successful write, but it does not authorize restoration or parent deletion: automatic down is blocked by the unsupported shared-restoration guard. In particular, publishing into an adopted repository does not authorize deleting that repository or rewriting its history. Such publication retains its exact commit/path evidence and requires deliberate reconciliation. The journal does not silently restore permissions, app configuration, or source over concurrent changes.
 
-A later non-no-op publication or shared mutation on an already recorded target requires reconciliation before another generation can be applied. Automatic receipt-generation chains are intentionally not implemented. Actual mismatched outcomes are conflicts and stop the current invocation immediately. Pending, deleting or conflict records block subsequent apply calls, including otherwise no-op applies; plan-only inspection remains available. Successfully acknowledged shared changes permit the rest of the approved setup and no-op reruns, retaining the existing evidence and the teardown blocker. Follow-up work should define reviewed generation transitions without overwriting earlier ownership or before/after receipts.
+Publication into a deployment-owned repository supports one narrow successor chain: each approved update names its exact applied predecessor and previous commit, records the new commit before push, and retains all earlier receipts. A no-op does not add a receipt. Branched histories, changed source commits, cross-target links and unresolved writes block another update. Teardown checks the terminal publication commit for each owned branch. Other repeated shared mutations still require reconciliation; there is no general receipt-generation or restoration mechanism. Actual mismatched outcomes are conflicts and stop the current invocation immediately. Pending, deleting or conflict records block subsequent apply calls, including otherwise no-op applies; plan-only inspection remains available. Successfully acknowledged shared changes permit the rest of the approved setup and no-op reruns, retaining the existing evidence and the teardown blocker. Follow-up work should define reviewed generation transitions without overwriting earlier ownership or before/after receipts.
 
 The journal is local and unsigned. It guards against accidental target confusion and interrupted writes; it is not proof against an attacker who can rewrite the checkout or its environment files. Keep the environment and journal together for teardown and review.
 
@@ -42,3 +43,11 @@ Those tests establish the local ownership algorithm and actual hook control flow
 ## Dedicated-object boundary
 
 Deployment-owned applications, identities and Azure DevOps objects must remain dedicated throughout their lifetime. Do not repurpose, share or concurrently edit them. Cleanup checks the reviewed configuration fields and dependencies; it does not inventory every possible application property or downstream reference and cannot guarantee detection of arbitrary later reuse. The separately administered setup client remains outside this ownership boundary.
+
+The fresh pipeline-preparation stage records publication and the returned exact
+pipeline ID before the separate access plan is approved. Owned endpoint and
+repository cleanup checks their authorized pipeline IDs against owned pipeline
+receipts. Unrelated pipelines elsewhere in the project do not become dependents
+merely because they share the project; an unrecorded pipeline actually authorized
+to an owned endpoint/repository still blocks cleanup. Narrow authorization on an
+adopted parent does not remove the shared-restoration limit described above.

@@ -21,9 +21,9 @@
     },
     {
       "id": "maester-azd-hooks",
-      "version": "3.0.1",
+      "version": "3.1.0",
       "sourceRepository": "https://github.com/nathanmcnulty/azd-reference",
-      "sourceRevision": "b9019c809bcffd2747fdb2f47e455ee9edfe7564",
+      "sourceRevision": "fc14358ee42e332e3d375a23463c0ef2a7de4c4a",
       "files": [
         {
           "source": "components/powershell/maester-azd-hooks/Get-ManagedIdentityPrincipal.ps1",
@@ -43,7 +43,7 @@
         {
           "source": "components/powershell/maester-azd-hooks/Maester-PreDownCleanup.psm1",
           "target": "scripts/vendor/Azd.MaesterHooks/Maester-PreDownCleanup.psm1",
-          "sha256": "6bf4a58d274be735f3b3905d7c83e0edabbfc514f30b01bf3138b1e94b562bf9"
+          "sha256": "28ec585b5ac07a679908b2cab2a100651b17ff9f5f8bc1573c957fad226f2a69"
         },
         {
           "source": "components/powershell/maester-azd-hooks/Maester-PreProvision.psm1",
@@ -78,7 +78,7 @@
         {
           "source": "components/powershell/maester-azd-hooks/Maester-OwnershipJournal.psm1",
           "target": "scripts/vendor/Azd.MaesterHooks/Maester-OwnershipJournal.psm1",
-          "sha256": "d164046211550ea49e7e793961e6b1694950aece31acc10b14a549e69dc163e6"
+          "sha256": "0f16e971b156ef937e039f5551fde6967f069695910922205a33189747263603"
         },
         {
           "source": "components/powershell/maester-azd-hooks/Maester-InfrastructureOwnership.psm1",

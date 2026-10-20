@@ -12,7 +12,7 @@ Describe 'Reviewed deployment setup access (offline)' {
     InModuleScope Maester-SetupConsent {
       function script:Invoke-GraphRestRequest { param($Method, $Uri, $Body) }
       function script:Get-MaesterAdoIdentity { }
-      function script:Get-MaesterAdoAccessDelta { }
+      function script:Get-MaesterAdoAccessDelta { param($Identity, $Parameters, $Pipeline) }
       function script:Get-MaesterAdoPipelineInventory { }
       function script:Invoke-MaesterAdoAccessDelta { }
       function script:Get-ServicePrincipal { }
@@ -42,6 +42,7 @@ Describe 'Reviewed deployment setup access (offline)' {
         groups = @(); malformed = $false; paginated = $false
         easyApps = @(); easyPrincipals = @(); easyGrants = @(); auth = [pscustomobject]@{ properties = @{} }
         exchangePrincipals = @(); exchangeRoles = @()
+        pipelineInventory = @{ pipeline = @{ id = 17; name = 'maester'; revision = 4; projectId = '55555555-5555-4555-8555-555555555555'; repositoryId = '66666666-6666-4666-8666-666666666666'; yamlPath = '/azure-pipelines.yml'; branch = 'refs/heads/main' }; branchObjectId = ('a' * 40) }
       }
       $script:parameters = @{
         TenantId = $script:testState.tenant; SubscriptionId = $script:testState.tenant
@@ -49,12 +50,13 @@ Describe 'Reviewed deployment setup access (offline)' {
         ResourceId = '/subscriptions/11111111-1111-4111-8111-111111111111/resourceGroups/rg-test/providers/Microsoft.App/jobs/job-test'
         StorageAccount = [pscustomobject]@{ id = '/subscriptions/11111111-1111-4111-8111-111111111111/resourceGroups/rg-test/providers/Microsoft.Storage/storageAccounts/storage'; name = 'storage' }
         ArmHeaders = @{ Authorization = 'offline-only' }; PermissionProfile = 'Full'; AdoParameters = @{}
+        PipelineConfiguration = @{ pipelineName = 'maester'; yamlPath = 'azure-pipelines.yml'; branch = 'main'; pushFiles = $false; validateRun = $false }
         IncludeMailSend = $false; IncludeReportSettingsWrite = $false
       }
       Mock Get-MaesterAdoIdentity {
         [pscustomobject]@{ principalId = $script:testState.principal; principal = [pscustomobject]@{ id = $script:testState.principal; appId = $script:testState.app; displayName = 'runtime-app'; servicePrincipalType = 'Application' }; inventory = @{ endpoint = 'verified' }; grantTarget = @{ TargetType = 'FederatedApplication'; ExpectedApplicationId = $script:testState.app; ExpectedApplicationObjectId = $script:testState.app; ExpectedFederatedCredentialIssuer = 'https://vstoken.dev.azure.com/organization'; ExpectedFederatedCredentialSubject = 'sc://org/project/connection' } }
       }
-      Mock Get-MaesterAdoPipelineInventory { @{ pipeline = $null; branchObjectId = '' } }
+      Mock Get-MaesterAdoPipelineInventory { $script:testState.pipelineInventory | ConvertTo-Json -Depth 20 | ConvertFrom-Json -AsHashtable }
       Mock Get-MaesterAdoAccessDelta { @{ inventory = @{}; operations = @() } }
       Mock Invoke-MaesterAdoAccessDelta { }
       # Scope fake script resolution to the planner and its apply path.
@@ -131,6 +133,61 @@ else { $plan }
   }
   AfterAll { Remove-Module Maester-SetupConsent, Maester-ConsentPlan -Force -ErrorAction SilentlyContinue }
 
+  It 'requires a separately prepared exact pipeline before any provider writes' {
+    InModuleScope Maester-SetupConsent {
+      $testState.pipelineInventory.pipeline = $null
+      { Get-MaesterSetupAccessPlan @parameters } | Should -Throw '*separately approved preparation plan*'
+      { Invoke-MaesterSetupAccessPlan -OwnershipSession $global:MaesterAccessTestSession -PlanParameters $parameters -ApprovedPlanHash ('a' * 64) } | Should -Throw '*separately approved preparation plan*'
+      $testState.operations.Count | Should -Be 0
+      Should -Invoke Get-MaesterAdoAccessDelta -Times 0 -Exactly
+      Should -Invoke Invoke-MaesterAdoAccessDelta -Times 0 -Exactly
+      Should -Invoke New-ServicePrincipal -Times 0 -Exactly
+      Should -Invoke New-ManagementRoleAssignment -Times 0 -Exactly
+    }
+    $global:setupGraphApplied | Should -Be 0
+  }
+  It 'binds the exact prepared pipeline and source commit into the reviewed access plan' {
+    InModuleScope Maester-SetupConsent {
+      $plan = Get-MaesterSetupAccessPlan @parameters
+      $plan.details.pipelineInventory.pipeline.id | Should -Be 17
+      $plan.details.pipelineInventory.pipeline.revision | Should -Be 4
+      $plan.details.pipelineInventory.branchObjectId | Should -BeExactly ('a' * 40)
+      Should -Invoke Get-MaesterAdoAccessDelta -Times 1 -Exactly -ParameterFilter {
+        $Pipeline.id -eq 17 -and $Pipeline.projectId -ceq '55555555-5555-4555-8555-555555555555' -and $Pipeline.repositoryId -ceq '66666666-6666-4666-8666-666666666666'
+      }
+      $testState.operations.Count | Should -Be 0
+    }
+  }
+  It 'invalidates approval on changed exact pipeline or source before any provider writes: <field>' -ForEach @('id', 'revision', 'branchObjectId') {
+    InModuleScope Maester-SetupConsent -Parameters @{ field = $_ } {
+      $plan = Get-MaesterSetupAccessPlan @parameters
+      if ($field -eq 'branchObjectId') { $testState.pipelineInventory.branchObjectId = ('b' * 40) }
+      else { $testState.pipelineInventory.pipeline[$field]++ }
+      { Invoke-MaesterSetupAccessPlan -OwnershipSession $global:MaesterAccessTestSession -PlanParameters $parameters -ApprovedPlanHash $plan.planHash } | Should -Throw '*changed after review*'
+      $testState.operations.Count | Should -Be 0
+      Should -Invoke Invoke-MaesterAdoAccessDelta -Times 0 -Exactly
+    }
+    $global:setupGraphApplied | Should -Be 0
+  }
+  It 'rechecks exact pipeline and branch immediately before ADO authorization: <field>' -ForEach @('id', 'revision', 'branchObjectId', 'missing') {
+    InModuleScope Maester-SetupConsent -Parameters @{ field = $_ } {
+      $plan = Get-MaesterSetupAccessPlan @parameters
+      $testState.pipelineReads = 0; $testState.latePipelineDrift = $field
+      Mock Get-MaesterAdoPipelineInventory {
+        $script:testState.pipelineReads++
+        $copy = $script:testState.pipelineInventory | ConvertTo-Json -Depth 20 | ConvertFrom-Json -AsHashtable
+        if ($script:testState.pipelineReads -gt 1) {
+          if ($script:testState.latePipelineDrift -eq 'branchObjectId') { $copy.branchObjectId = ('b' * 40) }
+          elseif ($script:testState.latePipelineDrift -eq 'missing') { $copy.pipeline = $null }
+          else { $copy.pipeline[$script:testState.latePipelineDrift]++ }
+        }
+        $copy
+      }
+      { Invoke-MaesterSetupAccessPlan -OwnershipSession $global:MaesterAccessTestSession -PlanParameters $parameters -ApprovedPlanHash $plan.planHash } | Should -Throw '*pipeline or source changed after approval*'
+      $testState.pipelineReads | Should -Be 2
+      Should -Invoke Invoke-MaesterAdoAccessDelta -Times 0 -Exactly
+    }
+  }
   It 'plans concrete categorized grants with no writes and a stable hash' {
     InModuleScope Maester-SetupConsent {
       $first = Get-MaesterSetupAccessPlan @parameters

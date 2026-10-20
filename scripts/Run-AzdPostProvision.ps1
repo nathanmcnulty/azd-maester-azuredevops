@@ -26,6 +26,9 @@ param(
   [switch]$IncludeRuntimeApplicationBootstrap,
   [switch]$ApplyBootstrap,
   [string]$ApprovedBootstrapPlanHash,
+  [switch]$PreparePipeline,
+  [switch]$ApplyPipeline,
+  [string]$ApprovedPipelinePlanHash,
   [switch]$Apply,
   [string]$ApprovedPlanHash,
   [switch]$InteractiveConsent,
@@ -144,7 +147,7 @@ if ($SecurityGroupDisplayName) {
   $setupParams['SecurityGroupDisplayName'] = $SecurityGroupDisplayName
 }
 
-foreach ($name in @('Bootstrap','IncludeRuntimeApplicationBootstrap','ApplyBootstrap','ApprovedBootstrapPlanHash','Apply','ApprovedPlanHash','InteractiveConsent','AllowInteractiveGraphLogin','AllowGraphContextReplacement','IncludeMailSend','IncludeReportSettingsWrite')) {
+foreach ($name in @('Bootstrap','IncludeRuntimeApplicationBootstrap','ApplyBootstrap','ApprovedBootstrapPlanHash','PreparePipeline','ApplyPipeline','ApprovedPipelinePlanHash','Apply','ApprovedPlanHash','InteractiveConsent','AllowInteractiveGraphLogin','AllowGraphContextReplacement','IncludeMailSend','IncludeReportSettingsWrite')) {
   if ($PSBoundParameters.ContainsKey($name)) { $setupParams[$name] = $PSBoundParameters[$name] }
 }
 $setupResult = & "$PSScriptRoot\Setup-PostDeploy.ps1" @setupParams
