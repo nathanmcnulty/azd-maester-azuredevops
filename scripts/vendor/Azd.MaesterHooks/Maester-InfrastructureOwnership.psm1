@@ -2,7 +2,8 @@
 # Graph/setup ownership: infrastructure can exist before any setup client does.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-Import-Module (Join-Path $PSScriptRoot 'Maester-SetupHelpers.psm1') -Force
+# Preserve the caller's helper exports and verified process-scoped setup session.
+Import-Module (Join-Path $PSScriptRoot 'Maester-SetupHelpers.psm1')
 
 $script:InfrastructureReceiptName = 'maester-infrastructure-ownership.json'
 $script:InfrastructureMarker = 'maester-ownership-id'

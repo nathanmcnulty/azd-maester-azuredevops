@@ -23,7 +23,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -45,7 +45,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -67,7 +67,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -89,7 +89,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -111,7 +111,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -133,7 +133,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -155,7 +155,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -177,7 +177,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -199,7 +199,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -221,7 +221,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -243,7 +243,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -265,7 +265,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -287,7 +287,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -309,7 +309,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -331,7 +331,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -353,7 +353,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -375,7 +375,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -397,7 +397,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -419,7 +419,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -441,7 +441,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -463,7 +463,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -485,7 +485,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -507,7 +507,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -529,7 +529,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -551,7 +551,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -573,7 +573,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -595,7 +595,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -617,7 +617,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         }
       ]
     },
@@ -639,7 +639,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         },
         {
           "path": "scripts/Setup-PostDeploy.ps1",
@@ -665,7 +665,7 @@
         },
         {
           "path": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         },
         {
           "path": "scripts/Setup-PostDeploy.ps1",

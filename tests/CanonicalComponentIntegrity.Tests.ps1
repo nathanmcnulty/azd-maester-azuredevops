@@ -5,9 +5,9 @@ Describe 'Reviewed canonical component and permission evidence' {
     $hooks = @($lock.components | Where-Object id -eq 'maester-azd-hooks')[0]
   }
   It 'pins the reviewed consent components and validates every vendored hash' {
-    $hooks.version | Should -Be '3.0.0'
+    $hooks.version | Should -Be '3.0.1'
     $hooks.sourceRepository | Should -Be 'https://github.com/nathanmcnulty/azd-reference'
-    $hooks.sourceRevision | Should -Be '65f6577ce805f2886b1d90198c140fd180e27e4a'
+    $hooks.sourceRevision | Should -Be 'b9019c809bcffd2747fdb2f47e455ee9edfe7564'
     $hooks.files.Count | Should -Be 13
     $coordinator = @($lock.components | Where-Object id -eq 'graph-delegated-authentication')[0]
     $coordinator.version | Should -Be '1.1.0'
@@ -72,5 +72,19 @@ Describe 'Owned cleanup authority stays separately declared' {
     $cleanup.permission | Should -Not -Contain 'Directory.AccessAsUser.All'
     $manifest.coverage | Should -BeExactly 'partial'
     ($manifest.gaps -join ' ') | Should -Match 'setup client'
+  }
+}
+
+Describe 'Consent documentation follows distinct component pins' {
+  It 'documents the current hooks version separately from the unchanged coordinator' {
+    $root = Split-Path $PSScriptRoot -Parent
+    $lock = Get-Content (Join-Path $root 'azd-components.lock.json') -Raw | ConvertFrom-Json
+    $hooks = $lock.components | Where-Object id -EQ 'maester-azd-hooks'
+    $coordinator = $lock.components | Where-Object id -EQ 'graph-delegated-authentication'
+    $documentation = Get-Content (Join-Path $root 'docs/setup-consent.md') -Raw
+    $documentation | Should -Match ('hooks ' + [regex]::Escape($hooks.version))
+    $documentation | Should -Match ('coordinator (?:remains )?' + [regex]::Escape($coordinator.version))
+    $documentation | Should -Match ([regex]::Escape($coordinator.sourceRevision))
+    $documentation | Should -Match '\.\./azd-components\.lock\.json'
   }
 }

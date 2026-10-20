@@ -21,9 +21,9 @@
     },
     {
       "id": "maester-azd-hooks",
-      "version": "3.0.0",
+      "version": "3.0.1",
       "sourceRepository": "https://github.com/nathanmcnulty/azd-reference",
-      "sourceRevision": "65f6577ce805f2886b1d90198c140fd180e27e4a",
+      "sourceRevision": "b9019c809bcffd2747fdb2f47e455ee9edfe7564",
       "files": [
         {
           "source": "components/powershell/maester-azd-hooks/Get-ManagedIdentityPrincipal.ps1",
@@ -33,7 +33,7 @@
         {
           "source": "components/powershell/maester-azd-hooks/Grant-MaesterGraphPermissions.ps1",
           "target": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "9c86ee2194bd5d46c827555f65ece59c8b28ec63f3c5aeefb67ce4dd4a3f2421"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         },
         {
           "source": "components/powershell/maester-azd-hooks/Maester-Helpers.psm1",
@@ -83,7 +83,7 @@
         {
           "source": "components/powershell/maester-azd-hooks/Maester-InfrastructureOwnership.psm1",
           "target": "scripts/vendor/Azd.MaesterHooks/Maester-InfrastructureOwnership.psm1",
-          "sha256": "491858ce48075810e8f8a1a4b7ee9c431c27165c95309c3af886e83d94d54a52"
+          "sha256": "f2d316ded17073743bf1b09a162c692e267441de96071b18b67be32dbaa6774f"
         },
         {
           "source": "components/powershell/maester-azd-hooks/Invoke-MaesterDown.ps1",

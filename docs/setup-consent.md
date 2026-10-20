@@ -1,9 +1,10 @@
 # Reviewed setup and federation consent
 
-Maester 2.3.0 is pinned by package version and SHA-256. Shared hooks 2.1.0 and
-delegated-session coordinator 1.1.0 are vendored from reviewed
-[Reference #134](https://github.com/nathanmcnulty/azd-reference/pull/134), exact
-revision `552ade2f0267e6872bd681f9a1d8a67ac72d055b`, with per-file lock hashes. The interactive question
+Maester 2.3.0 is pinned by package version and SHA-256. Shared hooks 3.0.1 are
+vendored at the exact source revision in [the component lockfile](../azd-components.lock.json).
+The separate delegated-session coordinator 1.1.0 remains pinned to reviewed
+[Reference #134](https://github.com/nathanmcnulty/azd-reference/pull/134), revision
+`552ade2f0267e6872bd681f9a1d8a67ac72d055b`. Both components have per-file lock hashes. The interactive question
 “Grant the permissions needed for the full assessment? [Y/n]” maps Yes/Enter to
 **Full (27 read roles)** and No to **Minimal (8)**. Extended remains the legacy
 19-role set. Selecting a profile does not grant permissions. Neither Full nor

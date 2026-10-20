@@ -233,7 +233,9 @@ Import-Module (Join-Path $PSScriptRoot 'Maester-SetupHelpers.psm1')
 if (-not (Test-MaesterGraphSession -TenantId $TenantId)) {
   Assert-GraphAccess -TenantId $TenantId -Scopes (Get-MaesterSetupScopes)
 }
-Import-Module (Join-Path $PSScriptRoot 'Maester-ConsentPlan.psm1') -Force
+# Reuse the dependency instance: forcing a reload from a nested setup module
+# removes approval commands already imported by its calling entrypoint.
+Import-Module (Join-Path $PSScriptRoot 'Maester-ConsentPlan.psm1')
 $principalSelect = 'id,appId,servicePrincipalType'
 if ($TargetType -ceq 'FederatedApplication') { $principalSelect += ',appOwnerOrganizationId,keyCredentials,passwordCredentials' }
 $principal = Invoke-GraphRestRequest -Method GET -Uri "https://graph.microsoft.com/v1.0/servicePrincipals/${PrincipalObjectId}?`$select=$principalSelect" -TenantId $TenantId
