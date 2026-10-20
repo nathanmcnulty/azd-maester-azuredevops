@@ -26,6 +26,9 @@ param(
   [switch]$IncludeRuntimeApplicationBootstrap,
   [switch]$ApplyBootstrap,
   [string]$ApprovedBootstrapPlanHash,
+  [switch]$PreparePipeline,
+  [switch]$ApplyPipeline,
+  [string]$ApprovedPipelinePlanHash,
   [switch]$Apply,
   [string]$ApprovedPlanHash,
   [switch]$InteractiveConsent,
@@ -115,6 +118,17 @@ if (-not $PSBoundParameters.ContainsKey('PermissionProfile') -and $env:PERMISSIO
   $PermissionProfile = $env:PERMISSION_PROFILE
 }
 
+# Capture infrastructure ownership before optional setup can be declined or fail.
+$ownershipRoot = Split-Path $PSScriptRoot -Parent
+$infrastructureReceipt = Join-Path $ownershipRoot ".azure/$EnvironmentName/maester-infrastructure-ownership.json"
+if (Test-Path -LiteralPath $infrastructureReceipt) {
+  Import-Module (Join-Path $PSScriptRoot 'vendor/Azd.MaesterHooks/Maester-InfrastructureOwnership.psm1') -ErrorAction Stop
+  Complete-MaesterInfrastructureOwnership -ProjectRoot $ownershipRoot -EnvironmentName $EnvironmentName -SolutionName 'azure-devops' `
+    -TenantId $TenantId -SubscriptionId $SubscriptionId -ResourceGroupName $ResourceGroupName
+} else {
+  Write-Warning 'No fresh infrastructure ownership receipt exists. Existing deployment behavior is preserved; automatic down requires explicit ownership recovery.'
+}
+
 Write-Host 'Running postprovision setup...'
 
 $setupParams = @{
@@ -133,7 +147,7 @@ if ($SecurityGroupDisplayName) {
   $setupParams['SecurityGroupDisplayName'] = $SecurityGroupDisplayName
 }
 
-foreach ($name in @('Bootstrap','IncludeRuntimeApplicationBootstrap','ApplyBootstrap','ApprovedBootstrapPlanHash','Apply','ApprovedPlanHash','InteractiveConsent','AllowInteractiveGraphLogin','AllowGraphContextReplacement','IncludeMailSend','IncludeReportSettingsWrite')) {
+foreach ($name in @('Bootstrap','IncludeRuntimeApplicationBootstrap','ApplyBootstrap','ApprovedBootstrapPlanHash','PreparePipeline','ApplyPipeline','ApprovedPipelinePlanHash','Apply','ApprovedPlanHash','InteractiveConsent','AllowInteractiveGraphLogin','AllowGraphContextReplacement','IncludeMailSend','IncludeReportSettingsWrite')) {
   if ($PSBoundParameters.ContainsKey($name)) { $setupParams[$name] = $PSBoundParameters[$name] }
 }
 $setupResult = & "$PSScriptRoot\Setup-PostDeploy.ps1" @setupParams

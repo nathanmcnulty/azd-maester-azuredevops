@@ -76,6 +76,9 @@ param(
   [switch]$IncludeRuntimeApplicationBootstrap,
   [switch]$ApplyBootstrap,
   [string]$ApprovedBootstrapPlanHash,
+  [switch]$PreparePipeline,
+  [switch]$ApplyPipeline,
+  [string]$ApprovedPipelinePlanHash,
   [switch]$Apply,
   [string]$ApprovedPlanHash,
   [switch]$InteractiveConsent,
@@ -261,7 +264,9 @@ function Push-RepositoryFiles {
     [Parameter(Mandatory = $true)]
     [object[]]$Files,
 
-    [string]$ExpectedBranchObjectId
+    [string]$ExpectedBranchObjectId,
+    $OwnershipSession,
+    [hashtable]$PublicationOwnership
   )
 
   $tempPath = Join-Path -Path ([IO.Path]::GetTempPath()) -ChildPath ("maester-ado-{0}" -f ([guid]::NewGuid().ToString('N')))
@@ -278,6 +283,14 @@ function Push-RepositoryFiles {
     if ($ExpectedBranchObjectId) {
       & git -C $tempPath checkout -B $Branch "origin/$Branch" | Out-Null
     } else {
+      # Approval of an absent branch must not adopt a commit introduced before
+      # clone (or another default branch) as an unreviewed publication parent.
+      $null = & git -C $tempPath rev-parse --verify --quiet HEAD
+      if ($LASTEXITCODE -ne 1) {
+        $bindingError = [InvalidOperationException]::new('Repository was expected to be empty but now has a commit or could not be verified; generate a fresh setup plan before publishing files.')
+        $bindingError.Data['MaesterPublicationBindingChanged'] = $true
+        throw $bindingError
+      }
       & git -C $tempPath checkout -B $Branch | Out-Null
     }
     if ($LASTEXITCODE -ne 0) {
@@ -286,7 +299,11 @@ function Push-RepositoryFiles {
 
     if ($ExpectedBranchObjectId) {
       $currentHead = & git -C $tempPath rev-parse HEAD
-      if ($LASTEXITCODE -ne 0 -or [string]$currentHead -cne $ExpectedBranchObjectId) { throw 'Repository branch changed after approval; generate a fresh setup plan before publishing files.' }
+      if ($LASTEXITCODE -ne 0 -or [string]$currentHead -cne $ExpectedBranchObjectId) {
+        $bindingError = [InvalidOperationException]::new('Repository branch changed after approval; generate a fresh setup plan before publishing files.')
+        $bindingError.Data['MaesterPublicationBindingChanged'] = $true
+        throw $bindingError
+      }
     }
 
     foreach ($file in $Files) {
@@ -334,10 +351,47 @@ function Push-RepositoryFiles {
       throw 'git commit failed.'
     }
 
-    & git -C $tempPath -c $header push origin $Branch | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-      throw "git push origin $Branch failed."
+    if (-not $OwnershipSession -or -not $PublicationOwnership) { throw 'An ownership journal session and exact publication target are required before publishing.' }
+    $commitId = [string](& git -C $tempPath rev-parse HEAD)
+    if ($LASTEXITCODE -ne 0 -or $commitId -cnotmatch '^[a-f0-9]{40}$') { throw 'The exact publication commit could not be read before push.' }
+    try {
+      $publicationArguments = @{}; foreach ($key in $PublicationOwnership.Keys) { $publicationArguments[$key] = $PublicationOwnership[$key] }
+      $publicationArguments.Session = $OwnershipSession
+      # A new publication may advance only the exact acknowledged terminal commit
+      # of this same owned repository and branch. Prior receipts stay immutable.
+      $publications = @((Get-MaesterOwnershipJournal -Session $OwnershipSession).records | Where-Object {
+        $_.kind -ceq 'AdoRepositoryPublication' -and $_.state -cne 'deleted' -and
+        $_.expected.organizationId -ceq $PublicationOwnership.Expected.organizationId -and
+        $_.expected.projectId -ceq $PublicationOwnership.Expected.projectId -and
+        $_.expected.repositoryId -ceq $PublicationOwnership.Expected.repositoryId -and
+        $_.expected.branch -ceq $PublicationOwnership.Expected.branch
+      })
+      if ($publications.Count) {
+        if (@($publications | Where-Object state -CNE 'applied').Count) { throw 'A prior publication outcome is unresolved; inspect its exact operation before retrying.' }
+        $supersededIds = @($publications | ForEach-Object { if ($_.Contains('supersedesOperationId')) { $_.supersedesOperationId } })
+        $terminal = @($publications | Where-Object { $_.operationId -cnotin $supersededIds })
+        if ($terminal.Count -ne 1 -or $terminal[0].after.commitId -cne $ExpectedBranchObjectId) { throw 'Publication predecessor does not match the exact reviewed branch commit; preserve remote changes and review a fresh plan.' }
+        if (-not $PublicationOwnership.ContainsKey('CoveredByOperationId') -or $terminal[0].coveredByOperationId -cne $PublicationOwnership.CoveredByOperationId) { throw 'Repeated publication requires the same exact owned repository; shared repository restoration is not supported.' }
+        $publicationArguments.SupersedesOperationId = $terminal[0].operationId
+      }
+      $publicationArguments.Key = "$($PublicationOwnership.Key):$commitId"
+      $publicationArguments.Before = @{ commitId = [string]$ExpectedBranchObjectId; files = @($Files | ForEach-Object Path) }
+      $publicationArguments.After = @{ commitId = $commitId; files = @($Files | ForEach-Object Path) }
+      $publicationOperation = Start-MaesterOwnedOperation @publicationArguments
+    } catch {
+      # Ledger and source binding conflicts are never generic Git failures and
+      # must not fall back to untracked manual publication instructions.
+      $_.Exception.Data['MaesterPublicationBindingChanged'] = $true
+      throw
     }
+    # Compare-and-swap the exact reviewed remote ref, including an explicit
+    # absent-ref lease for an initial publication. A concurrent rewind is also
+    # rejected even when an ordinary fast-forward push could have succeeded.
+    & git -C $tempPath -c $header push "--force-with-lease=refs/heads/$Branch`:$ExpectedBranchObjectId" origin "HEAD:refs/heads/$Branch" | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+      throw "git push origin $Branch failed. Publication outcome remains unresolved in the ownership journal."
+    }
+    Complete-MaesterOwnedOperation -Session $OwnershipSession -OperationId $publicationOperation.operationId -ExactIds @{ repositoryId = $PublicationOwnership.Expected.repositoryId; commitId = $commitId } | Out-Null
 
     return [pscustomobject]@{
       Pushed     = $true
@@ -488,7 +542,7 @@ if (-not $PipelineYamlPath) {
 if (-not $DefaultBranch) {
   $DefaultBranch = if ($env:AZDO_DEFAULT_BRANCH) { $env:AZDO_DEFAULT_BRANCH } else { Get-EnvValue -Lines $envLines -Name 'AZDO_DEFAULT_BRANCH' }
 }
-if (-not $ScheduleCron) {
+if (-not $PSBoundParameters.ContainsKey('ScheduleCron')) {
   $ScheduleCron = if ($env:AZDO_SCHEDULE_CRON) { $env:AZDO_SCHEDULE_CRON } else { Get-EnvValue -Lines $envLines -Name 'AZDO_SCHEDULE_CRON' }
 }
 
@@ -502,7 +556,7 @@ if (-not $PSBoundParameters.ContainsKey('PushPipelineFiles')) {
 }
 if (-not $PSBoundParameters.ContainsKey('ValidatePipelineRun')) {
   $validatePipelineRunValue = if ($env:AZDO_VALIDATE_PIPELINE_RUN) { $env:AZDO_VALIDATE_PIPELINE_RUN } else { Get-EnvValue -Lines $envLines -Name 'AZDO_VALIDATE_PIPELINE_RUN' }
-  $ValidatePipelineRun = ConvertTo-BoolOrDefault -Value $validatePipelineRunValue -Default $true
+  $ValidatePipelineRun = ConvertTo-BoolOrDefault -Value $validatePipelineRunValue -Default $false
 }
 if (-not $PSBoundParameters.ContainsKey('FailOnTestFailures')) {
   # Always default to $false; do not persist across deployments since the old default was $true
@@ -522,9 +576,10 @@ if ([string]::IsNullOrWhiteSpace($PipelineYamlPath)) {
 if ([string]::IsNullOrWhiteSpace($DefaultBranch)) {
   $DefaultBranch = 'main'
 }
-if ([string]::IsNullOrWhiteSpace($ScheduleCron)) {
-  $ScheduleCron = '0 0 * * 0'
-}
+# The existing weekly schedule is proposed explicitly in the fresh access
+# plan. Preparation always omits it and never queues the first run.
+if (-not $PSBoundParameters.ContainsKey('ScheduleCron') -and [string]::IsNullOrWhiteSpace($ScheduleCron)) { $ScheduleCron = '0 0 * * 0' }
+$ScheduleCron = $ScheduleCron.Trim()
 
 # Validate fresh ARM metadata before authentication or any target/permission writes.
 if ([string]::IsNullOrWhiteSpace($TenantId)) {
@@ -602,6 +657,8 @@ $webAppResource = $targets.WebApp
 # Authentication for Graph setup belongs exclusively to the dedicated public
 # client. Selected runtime capabilities are not approval of any access changes.
 Import-Module (Join-Path $PSScriptRoot 'vendor/Azd.MaesterHooks/Maester-ConsentPlan.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'vendor/Azd.MaesterHooks/Maester-OwnershipJournal.psm1')
+Import-Module (Join-Path $PSScriptRoot 'vendor/Azd.MaesterHooks/Maester-InfrastructureOwnership.psm1')
 Import-Module (Join-Path $PSScriptRoot 'Maester-AdoBootstrap.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'Maester-SetupConsent.psm1') -Force
 $includeWebApp = $null -ne $webAppResource
@@ -624,6 +681,8 @@ foreach ($capability in @('IncludeMailSend', 'IncludeReportSettingsWrite')) {
 }
 if ($PermissionProfile -notin @('Minimal', 'Full', 'Extended')) { throw 'Unknown permission profile. Choose Minimal, Full, or legacy Extended.' }
 if ($ApplyBootstrap) { $Bootstrap = $true }
+if ($ApplyPipeline) { $PreparePipeline = $true }
+if (($Bootstrap -and ($PreparePipeline -or $ApprovedPipelinePlanHash)) -or ($PreparePipeline -and ($Apply -or $ApprovedPlanHash))) { throw 'Runtime bootstrap, pipeline preparation and setup access approval are separate stages.' }
 if ($Bootstrap -and ($Apply -or $ApprovedPlanHash)) { throw 'Bootstrap and setup access approval are separate stages.' }
 if ($AllowGraphContextReplacement -and -not $AllowInteractiveGraphLogin) { throw 'Context replacement requires explicit interactive login and replacement approval.' }
 if ($InteractiveConsent -and -not $AllowInteractiveGraphLogin) {
@@ -649,12 +708,24 @@ foreach ($binding in @(
   $value = if ([Environment]::GetEnvironmentVariable($binding[1])) { [Environment]::GetEnvironmentVariable($binding[1]) } else { Get-EnvValue $envLines $binding[1] }
   if ($value) { $adoParameters[$binding[0]] = $value }
 }
+$ownershipSession = $null
+try {
 if ($Bootstrap) {
   $bootstrapPlan = Get-MaesterAdoBootstrapPlan -Parameters $adoParameters
   Write-Host ($bootstrapPlan | ConvertTo-Json -Depth 100)
   if ($InteractiveConsent) { $ApprovedBootstrapPlanHash = Confirm-MaesterConsentPlan -Plan $bootstrapPlan; $ApplyBootstrap = $true }
   if (-not $ApplyBootstrap) { Write-Host 'Bootstrap plan only. Review the exact operations and use -ApplyBootstrap -ApprovedBootstrapPlanHash.'; return $bootstrapPlan }
-  $bootstrapResult = Invoke-MaesterAdoBootstrapPlan -Parameters $adoParameters -ApprovedPlanHash $ApprovedBootstrapPlanHash
+  if ($ApprovedBootstrapPlanHash -cne $bootstrapPlan.planHash) { throw 'Bootstrap inventory changed after review. Approve the fresh exact plan before any writes.' }
+  Assert-MaesterConsentPlanApproval -Plan $bootstrapPlan -ApprovedPlanHash $ApprovedBootstrapPlanHash
+  Register-MaesterExternalSetupStarted -ProjectRoot $projectRoot -EnvironmentName $EnvironmentName -SolutionName 'azure-devops' -TenantId $TenantId -SubscriptionId $SubscriptionId -ResourceGroupName $ResourceGroupName | Out-Null
+  $ownershipSession = Open-MaesterOwnershipJournal -ProjectRoot $projectRoot -Binding (Get-MaesterAdoOwnershipBinding -Parameters $adoParameters -Snapshot $bootstrapPlan.details.inventory)
+  # The lifecycle lock must precede fresh environment/target verification and
+  # remain held through all writes and exact readbacks in this invocation.
+  $lockedValues = Get-MaesterDeploymentValues -EnvironmentName $EnvironmentName -SubscriptionId $SubscriptionId -ResourceGroupName $ResourceGroupName
+  $null = Resolve-MaesterDeploymentTargets -EnvironmentValues $lockedValues -SubscriptionId $SubscriptionId -ResourceGroupName $ResourceGroupName -EnvironmentName $EnvironmentName -SolutionName 'azure-devops' -GetResource {
+    param($path); (Invoke-AzRestMethod -Method GET -Path $path).Content | ConvertFrom-Json
+  }
+  $bootstrapResult = Invoke-MaesterAdoBootstrapPlan -Parameters $adoParameters -ApprovedPlanHash $ApprovedBootstrapPlanHash -OwnershipSession $ownershipSession
   if (@($bootstrapResult.AppliedPlan.details.operations | Where-Object kind -eq 'Repository').Count) {
     $repositoryCreatedByEnvironment = $true
     Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_REPOSITORY_CREATED' -Value 'true'
@@ -666,7 +737,7 @@ if ($Bootstrap) {
       @('AZDO_WORKLOAD_APP_OBJECT_ID', $snapshot.application.id), @('AZDO_WORKLOAD_SERVICE_PRINCIPAL_OBJECT_ID', $snapshot.principal.id),
       @('AZDO_REPOSITORY_ID', $snapshot.repository.id)
     )) { Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name $entry[0] -Value $entry[1] }
-    Write-Host 'Runtime bootstrap verified. Stop here; generate and approve a separate fresh setup access plan.'
+    Write-Host 'Runtime bootstrap verified. Stop here; review pipeline preparation next, then approve a fresh exact setup access plan.'
   } else {
     Write-Host 'This bootstrap stage completed. Newly resolved identities require a fresh -Bootstrap plan and exact approval before further operations.'
   }
@@ -740,7 +811,11 @@ $replacementMap = @{
 foreach ($value in $replacementMap.Values) {
   if ([string]$value -match '[\r\n\x22\x27\x60$]') { throw 'Pipeline settings must be literal single-line values without quotes, backticks or dollar-sign expansions.' }
 }
-$renderedPipeline = $templateContent
+$scheduledTemplateContent = $templateContent
+# Only the preparation publication omits the complete schedule block. CI and
+# PR triggers are already disabled by the production template.
+$inertTemplateContent = [regex]::Replace($templateContent, '(?ms)^schedules:\r?\n.*?(?=^pool:)', '')
+$renderedPipeline = if ($PreparePipeline -or -not $ScheduleCron) { $inertTemplateContent } else { $scheduledTemplateContent }
 foreach ($key in $replacementMap.Keys) {
   $renderedPipeline = $renderedPipeline.Replace($key, [string]$replacementMap[$key])
 }
@@ -773,15 +848,89 @@ $pipelineFiles = @(
   }
 )
 
-# The rendered runtime files and exact publication destination are part of the
-# reviewed aggregate plan. A later source edit invalidates that approval.
+# Local file evidence is included only for an approved publication stage.
+# Access-only plans bind the immutable remote commit instead.
 $fileEvidence = @($pipelineFiles | ForEach-Object {
   [ordered]@{ path = $_.Path; sha256 = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($_.Content))).ToLowerInvariant() }
 })
 $pipelineConfiguration = @{
   repositoryId = $repositoryId; repositoryUrl = $repositoryUrl; pipelineName = $AdoPipelineName
-  yamlPath = $pipelineRepoPath; branch = $DefaultBranch; schedule = $ScheduleCron
-  pushFiles = $PushPipelineFiles; validateRun = $ValidatePipelineRun; files = $fileEvidence
+  yamlPath = $pipelineRepoPath; branch = $DefaultBranch; schedule = $(if ($PushPipelineFiles) { $ScheduleCron } else { '' })
+  scheduleAction = $(if (-not $PushPipelineFiles) { 'PreserveRemote' } elseif ($ScheduleCron) { 'PublishSchedule' } else { 'PublishWithoutSchedule' })
+  pushFiles = $PushPipelineFiles; validateRun = $ValidatePipelineRun; files = @(if ($PushPipelineFiles) { $fileEvidence })
+}
+$initialPipelineInventory = Get-MaesterAdoPipelineInventory -Identity $adoIdentity -Configuration $pipelineConfiguration -Parameters $adoParameters
+if ($PreparePipeline -or -not $initialPipelineInventory.pipeline) {
+  if ($Apply -or $ApprovedPlanHash) { throw 'Pipeline preparation and setup access are separate stages. Review -PreparePipeline, apply its exact hash with -ApplyPipeline -ApprovedPipelinePlanHash, then generate a fresh access plan.' }
+  # A fresh definition can only be prepared from these inert runtime files.
+  $inertPipeline = $inertTemplateContent
+  foreach ($key in $replacementMap.Keys) { $inertPipeline = $inertPipeline.Replace($key, [string]$replacementMap[$key]) }
+  if ($inertPipeline -match '(?m)^\s*schedules\s*:' -or
+      [regex]::Matches($inertPipeline, '(?m)^trigger:').Count -ne 1 -or $inertPipeline -cnotmatch '(?m)^trigger:\s*none\s*$' -or
+      [regex]::Matches($inertPipeline, '(?m)^pr:').Count -ne 1 -or $inertPipeline -cnotmatch '(?m)^pr:\s*none\s*$') {
+    throw 'Pipeline preparation requires a verified schedule-free template with CI and PR triggers disabled.'
+  }
+  $pipelineFiles[0].Content = $inertPipeline
+  $preparationConfiguration = @{} + $pipelineConfiguration
+  $preparationConfiguration.pushFiles = $PushPipelineFiles
+  $preparationConfiguration.validateRun = $false
+  $preparationConfiguration.schedule = ''
+  $preparationConfiguration.scheduleAction = 'PrepareWithoutSchedule'
+  $preparationConfiguration.requestedSchedule = $ScheduleCron
+  $preparationConfiguration.files = @($pipelineFiles | ForEach-Object {
+    [ordered]@{ path = $_.Path; sha256 = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($_.Content))).ToLowerInvariant() }
+  })
+  $preparationPlan = Get-MaesterAdoPipelinePreparationPlan -Identity $adoIdentity -Configuration $preparationConfiguration -Parameters $adoParameters
+  Write-Host ($preparationPlan | ConvertTo-Json -Depth 100)
+  if ($InteractiveConsent) { $ApprovedPipelinePlanHash = Confirm-MaesterConsentPlan -Plan $preparationPlan; $ApplyPipeline = $true }
+  if (-not $ApplyPipeline) { Write-Host 'Pipeline preparation plan only. Review and use -ApplyPipeline -ApprovedPipelinePlanHash. No access grants or run are included.'; return $preparationPlan }
+  if ($ApprovedPipelinePlanHash -cne $preparationPlan.planHash) { throw 'Pipeline preparation changed after review. Approve the fresh exact plan before any writes.' }
+  Assert-MaesterConsentPlanApproval -Plan $preparationPlan -ApprovedPlanHash $ApprovedPipelinePlanHash
+  Register-MaesterExternalSetupStarted -ProjectRoot $projectRoot -EnvironmentName $EnvironmentName -SolutionName 'azure-devops' -TenantId $TenantId -SubscriptionId $SubscriptionId -ResourceGroupName $ResourceGroupName | Out-Null
+  $ownershipSession = Open-MaesterOwnershipJournal -ProjectRoot $projectRoot -Binding (Get-MaesterAdoOwnershipBinding -Parameters $adoParameters -Snapshot $adoIdentity.snapshot)
+  Assert-MaesterOwnershipApplyReady -Session $ownershipSession
+  $lockedValues = Get-MaesterDeploymentValues -EnvironmentName $EnvironmentName -SubscriptionId $SubscriptionId -ResourceGroupName $ResourceGroupName
+  $null = Resolve-MaesterDeploymentTargets -EnvironmentValues $lockedValues -SubscriptionId $SubscriptionId -ResourceGroupName $ResourceGroupName -EnvironmentName $EnvironmentName -SolutionName 'azure-devops' -GetResource {
+    param($path); (Invoke-AzRestMethod -Method GET -Path $path).Content | ConvertFrom-Json
+  }
+  $adoIdentity = Get-MaesterAdoIdentity @adoParameters
+  $freshPreparationPlan = Get-MaesterAdoPipelinePreparationPlan -Identity $adoIdentity -Configuration $preparationConfiguration -Parameters $adoParameters
+  if ($freshPreparationPlan.planHash -cne $ApprovedPipelinePlanHash) { throw 'Pipeline preparation inventory changed after review. No publication or pipeline creation was attempted.' }
+  $devOpsToken = Get-AzureDevOpsAccessToken -TenantId $TenantId
+  $publicationOwnership = @{ Key = "PreparationPublication:$repositoryId`:$DefaultBranch"; Kind = 'AdoRepositoryPublication'; Ownership = 'Mutation'; PlanHash = $preparationPlan.planHash
+    Expected = @{ organizationId = $adoIdentity.snapshot.organization.id; projectId = $adoIdentity.snapshot.project.id; repositoryId = $repositoryId; branch = "refs/heads/$DefaultBranch" } }
+  $publicationParent = Find-MaesterOwnedOperationId -Session $ownershipSession -Kind AdoRepository -IdField repositoryId -Id $repositoryId
+  if ($publicationParent) { $publicationOwnership.CoveredByOperationId = $publicationParent }
+  $pushResult = Push-RepositoryFiles -RepositoryUrl $repositoryUrl -Branch $DefaultBranch -BearerToken $devOpsToken -Files $pipelineFiles -ExpectedBranchObjectId $preparationPlan.details.pipelineInventory.branchObjectId -OwnershipSession $ownershipSession -PublicationOwnership $publicationOwnership
+  $publishedCommit = [string](Get-OptionalPropertyValue -InputObject $pushResult -PropertyNames 'CommitId')
+  if ($publishedCommit -cnotmatch '^[a-f0-9]{40}$') { throw 'Pipeline preparation publication returned no exact source commit.' }
+  $beforeCreate = Get-MaesterAdoPipelineInventory -Identity $adoIdentity -Configuration $preparationConfiguration -Parameters $adoParameters
+  if ($beforeCreate.pipeline -or $beforeCreate.branchObjectId -cne $publishedCommit) { throw 'Pipeline or published source changed before creation; review a fresh preparation plan.' }
+  $pipelineOperation = Start-MaesterOwnedOperation -Session $ownershipSession -Key (Get-MaesterOwnershipOperationKey -Kind Pipeline -Target "$($adoIdentity.snapshot.project.id):$AdoPipelineName") -Kind AdoPipeline -Ownership Created -PlanHash $preparationPlan.planHash -Expected @{
+    organizationId = $adoIdentity.snapshot.organization.id; projectId = $adoIdentity.snapshot.project.id; repositoryId = $repositoryId
+    yamlPath = "/$pipelineRepoPath"; branch = "refs/heads/$DefaultBranch"; pipelineName = $AdoPipelineName; serviceConnectionId = $serviceConnectionId
+  }
+  # Definition creation does not queue a run. The published YAML has no schedule,
+  # CI or PR trigger, and no access is granted during preparation.
+  $createdPipeline = Invoke-MaesterAdoPipelineCreation -Plan $preparationPlan -ApprovedPlanHash $ApprovedPipelinePlanHash -Parameters $adoParameters
+  $pipelineReceipt = @{ pipelineId = [string]$createdPipeline.id }
+  Complete-MaesterOwnedOperation -Session $ownershipSession -OperationId $pipelineOperation.operationId -ExactIds $pipelineReceipt | Out-Null
+  try {
+    $pipelineBinding = Assert-MaesterAdoPipelineBinding -Identity $adoIdentity -Configuration $preparationConfiguration -Parameters $adoParameters -CreatedPipelineId ([string]$createdPipeline.id)
+    if (@($pipelineBinding.triggers).Count) { throw 'Fresh pipeline unexpectedly has automatic triggers; no access grants or run are authorized.' }
+    $pipelineReceipt.pipelineRevision = [string]$pipelineBinding.revision
+    Complete-MaesterOwnedOperation -Session $ownershipSession -OperationId $pipelineOperation.operationId -ExactIds $pipelineReceipt | Out-Null
+    $afterCreate = Get-MaesterAdoPipelineInventory -Identity $adoIdentity -Configuration $preparationConfiguration -Parameters $adoParameters
+    if ($afterCreate.branchObjectId -cne $publishedCommit) { throw 'Prepared source changed during pipeline creation; review its exact state before granting access.' }
+  } catch {
+    Set-MaesterOwnedOperationState -Session $ownershipSession -OperationId $pipelineOperation.operationId -State conflict | Out-Null
+    throw
+  }
+  foreach ($entry in @(@('AZDO_PIPELINE_NAME', $AdoPipelineName), @('AZDO_PIPELINE_ID', [string]$pipelineBinding.id), @('AZDO_PIPELINE_FILES_PUSHED', $pushResult.Pushed.ToString().ToLower()))) {
+    Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name $entry[0] -Value $entry[1]
+  }
+  Write-Host 'Unrun pipeline preparation verified. Stop here and review a fresh setup access plan binding this exact pipeline ID, revision and immutable source commit. No schedule, grant or run was applied.'
+  return [pscustomobject]@{ AppliedPlan = $preparationPlan; Pipeline = $pipelineBinding; SourceCommit = $publishedCommit; NextStep = 'Review a fresh setup access plan. Preparation approval does not authorize any access grant, schedule or run.' }
 }
 $accessPlanParameters = @{
   TenantId = $TenantId; SubscriptionId = $SubscriptionId; PrincipalObjectId = $servicePrincipal.id
@@ -799,7 +948,17 @@ $accessPlan = Get-MaesterSetupAccessPlan @accessPlanParameters
 Write-Host ($accessPlan | ConvertTo-Json -Depth 100)
 if ($InteractiveConsent) { $ApprovedPlanHash = Confirm-MaesterConsentPlan -Plan $accessPlan; $Apply = $true }
 if (-not $Apply) { Write-Host 'Plan only. No grants, app changes, pipeline permissions, file pushes, runs or receipts were written.'; return $accessPlan }
-$accessResult = Invoke-MaesterSetupAccessPlan -PlanParameters $accessPlanParameters -ApprovedPlanHash $ApprovedPlanHash
+if ($ApprovedPlanHash -cne $accessPlan.planHash) { throw 'Setup access changed after review. Generate and approve the new plan before any writes.' }
+Assert-MaesterConsentPlanApproval -Plan $accessPlan -ApprovedPlanHash $ApprovedPlanHash
+Register-MaesterExternalSetupStarted -ProjectRoot $projectRoot -EnvironmentName $EnvironmentName -SolutionName 'azure-devops' -TenantId $TenantId -SubscriptionId $SubscriptionId -ResourceGroupName $ResourceGroupName | Out-Null
+$ownershipSession = Open-MaesterOwnershipJournal -ProjectRoot $projectRoot -Binding (Get-MaesterAdoOwnershipBinding -Parameters $adoParameters -Snapshot $adoIdentity.snapshot)
+$lockedValues = Get-MaesterDeploymentValues -EnvironmentName $EnvironmentName -SubscriptionId $SubscriptionId -ResourceGroupName $ResourceGroupName
+$lockedTargets = Resolve-MaesterDeploymentTargets -EnvironmentValues $lockedValues -SubscriptionId $SubscriptionId -ResourceGroupName $ResourceGroupName -EnvironmentName $EnvironmentName -SolutionName 'azure-devops' -GetResource {
+  param($path); (Invoke-AzRestMethod -Method GET -Path $path).Content | ConvertFrom-Json
+}
+$accessPlanParameters.StorageAccount = $lockedTargets.StorageAccount
+$accessPlanParameters.WebApp = $lockedTargets.WebApp
+$accessResult = Invoke-MaesterSetupAccessPlan -PlanParameters $accessPlanParameters -ApprovedPlanHash $ApprovedPlanHash -OwnershipSession $ownershipSession
 $approvedPipeline = $accessResult.Plan.details.pipelineInventory.pipeline
 # Rebind before publishing files or reusing a pipeline after access writes.
 $pipelineBinding = Assert-MaesterAdoPipelineBinding -Identity $adoIdentity -Configuration $pipelineConfiguration -Parameters $adoParameters -ExpectedPipeline $approvedPipeline
@@ -836,8 +995,12 @@ $pushResult = [pscustomobject]@{
 
 $manualFilesPath = $null
 if ($PushPipelineFiles) {
+  $publicationOwnership = @{ Key = "Publication:$repositoryId`:$DefaultBranch"; Kind = 'AdoRepositoryPublication'; Ownership = 'Mutation'; PlanHash = $accessResult.Plan.planHash
+    Expected = @{ organizationId = $adoIdentity.snapshot.organization.id; projectId = $adoIdentity.snapshot.project.id; repositoryId = $repositoryId; branch = "refs/heads/$DefaultBranch" } }
+  $publicationParent = Find-MaesterOwnedOperationId -Session $ownershipSession -Kind AdoRepository -IdField repositoryId -Id $repositoryId
+  if ($publicationParent) { $publicationOwnership.CoveredByOperationId = $publicationParent }
   try {
-    $pushResult = Push-RepositoryFiles -RepositoryUrl $repositoryUrl -Branch $DefaultBranch -BearerToken $devOpsToken -Files $pipelineFiles -ExpectedBranchObjectId $accessResult.Plan.details.pipelineInventory.branchObjectId
+    $pushResult = Push-RepositoryFiles -RepositoryUrl $repositoryUrl -Branch $DefaultBranch -BearerToken $devOpsToken -Files $pipelineFiles -ExpectedBranchObjectId $accessResult.Plan.details.pipelineInventory.branchObjectId -OwnershipSession $ownershipSession -PublicationOwnership $publicationOwnership
     if ($pushResult.Pushed) {
       Write-Host "Pipeline files pushed to repository '$AdoRepositoryName' branch '$DefaultBranch'."
     }
@@ -846,6 +1009,10 @@ if ($PushPipelineFiles) {
     }
   }
   catch {
+    if ($_.Exception.Data['MaesterPublicationBindingChanged']) { throw }
+    if (@((Get-MaesterOwnershipJournal -Session $ownershipSession).records | Where-Object { $_.kind -eq 'AdoRepositoryPublication' -and $_.state -eq 'pending' }).Count) {
+      throw 'Repository publication may have succeeded remotely. Inspect the pending exact ownership operation before retrying or creating a pipeline.'
+    }
     Write-Warning "Automatic pipeline file push failed. Falling back to manual instructions. Error: $($_.Exception.Message)"
 
     $manualFilesPath = Join-Path -Path $projectRoot -ChildPath ("outputs/{0}-pipeline-files" -f $EnvironmentName)
@@ -867,9 +1034,7 @@ if ($PushPipelineFiles) {
   }
 }
 
-if (-not $PushPipelineFiles) {
-  Write-Host 'PushPipelineFiles=false, skipping automatic repository push.'
-}
+if (-not $PushPipelineFiles) { Write-Host 'PushPipelineFiles=false; remote runtime files and schedules are preserved.' }
 
 Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_PIPELINE_FILES_PUSHED' -Value $pushResult.Pushed.ToString().ToLower()
 Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_FAIL_ON_TEST_FAILURES' -Value $FailOnTestFailures.ToString().ToLower()
@@ -880,22 +1045,9 @@ else {
   Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_MANUAL_PIPELINE_FILES_PATH' -Value ''
 }
 
-# Re-read again at the definition boundary; never adopt a same-name replacement.
+# Re-read again after access and any explicitly approved schedule publication.
 $pipelineBinding = Assert-MaesterAdoPipelineBinding -Identity $adoIdentity -Configuration $pipelineConfiguration -Parameters $adoParameters -ExpectedPipeline $approvedPipeline
 $pipeline = $pipelineBinding
-if (-not $pipeline) {
-  Write-Host "Creating pipeline '$AdoPipelineName'..."
-  try {
-    $createdPipeline = New-ADOPSPipeline -Project $AdoProject -Name $AdoPipelineName -Repository $AdoRepositoryName -YamlPath "/$pipelineRepoPath" -Organization $AdoOrganization
-    $pipelineBinding = Assert-MaesterAdoPipelineBinding -Identity $adoIdentity -Configuration $pipelineConfiguration -Parameters $adoParameters -CreatedPipelineId ([string]$createdPipeline.id)
-    $pipeline = $pipelineBinding
-  } catch {
-    if ($manualFilesPath) {
-      throw "Pipeline creation failed because the YAML file is not yet in repository '$AdoRepositoryName'. Upload files from '$manualFilesPath' and rerun Setup-PostDeploy.ps1. Error: $($_.Exception.Message)"
-    }
-    throw
-  }
-}
 
 Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_PIPELINE_NAME' -Value $AdoPipelineName
 Set-MaesterAzdEnvValue -EnvironmentName $EnvironmentName -Name 'AZDO_PIPELINE_ID' -Value ([string]$pipeline.id)
@@ -969,7 +1121,8 @@ $summaryLines += "Pipeline validation enabled: $($ValidatePipelineRun.ToString()
 $summaryLines += "Fail pipeline step on Maester failed tests: $($FailOnTestFailures.ToString().ToLower())"
 $summaryLines += "Pipeline files push result: $($pushResult.Pushed.ToString().ToLower())"
 $summaryLines += "Manual pipeline files path: $(if ($manualFilesPath) { $manualFilesPath } else { 'n/a' })"
-$summaryLines += "Schedule cron: $ScheduleCron"
+$summaryLines += "Schedule action: $($pipelineConfiguration.scheduleAction)"
+$summaryLines += "Published schedule cron: $(if ($PushPipelineFiles -and $ScheduleCron) { $ScheduleCron } else { 'n/a' })"
 $summaryLines += "Default branch: $DefaultBranch"
 $summaryLines += "Include web app: $($includeWebApp.ToString().ToLower())"
 $summaryLines += "Include Exchange: $([bool]$IncludeExchange)"
@@ -1001,11 +1154,7 @@ $summaryLines += "- Validation completed at: $($validationResult.CompletedAt)"
 
 Set-Content -Path $summaryPath -Value ($summaryLines -join [Environment]::NewLine) -Encoding utf8
 Write-Host "Deployment summary written to: $summaryPath"
-
-
-
-
-
-
-
-
+}
+finally {
+  if ($ownershipSession) { $ownershipSession.Dispose() }
+}

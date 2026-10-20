@@ -112,3 +112,10 @@ function Invoke-AzureDevOpsPreflight {
 
 $effectiveSubscriptionId = if ($SubscriptionId) { $SubscriptionId } else { $env:AZURE_SUBSCRIPTION_ID }
 Invoke-AzureDevOpsPreflight -SubscriptionId $effectiveSubscriptionId
+
+# Capture infrastructure separately from optional Graph/setup. Only this hook's
+# exact HTTP 201 response can establish fresh dedicated resource-group ownership.
+Import-Module (Join-Path $PSScriptRoot 'vendor/Azd.MaesterHooks/Maester-InfrastructureOwnership.psm1') -Force
+Initialize-MaesterInfrastructureOwnership -ProjectRoot (Split-Path $PSScriptRoot -Parent) `
+  -EnvironmentName $env:AZURE_ENV_NAME -SolutionName 'azure-devops' `
+  -TenantId $TenantId -SubscriptionId $SubscriptionId | Out-Null

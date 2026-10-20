@@ -21,8 +21,9 @@ After `azd init -t nathanmcnulty/azd-maester-azuredevops`, run from the template
 
 Before setup, an administrator must prepare the dedicated setup public client.
 Postprovision is read-only by default. Fresh runtime identity creation uses
-separately reviewed bootstrap stages; access changes require a fresh aggregate
-plan hash. Follow [setup and consent](docs/setup-consent.md) for the complete
+separately reviewed bootstrap stages, followed by an approved unrun-pipeline
+preparation stage. Access changes then require a fresh aggregate plan hash
+bound to that exact pipeline ID. Follow [setup and consent](docs/setup-consent.md) for the complete
 scope union, bootstrap and apply commands. Existing runtime identities keep
 workload federation and do not receive permission-management authority.
 
@@ -45,7 +46,7 @@ During interactive `azd up`, the preprovision wizard prompts for:
 - Full assessment [Y/n], with separate default-off mail and report-write choices
 - Dedicated setup client/account and optional mail recipient
 
-For non-interactive runs (`azd up --no-prompt`), if `AZURE_RESOURCE_GROUP` is set, `preup` creates it automatically when missing.
+For fresh environments, `preprovision` creates the selected absent dedicated resource group and records its exact creation outcome. Existing groups are never silently adopted for cleanup.
 
 ## What setup does
 
@@ -56,7 +57,11 @@ For non-interactive runs (`azd up --no-prompt`), if `AZURE_RESOURCE_GROUP` is se
 - Separately approves Full27, Minimal8 or explicit legacy Extended19 Graph reads
 - Keeps mail, report-setting writes, Exchange, Teams, Azure and Easy Auth optional
 - Revalidates the aggregate delta and rendered source hashes before applying
-- Pushes reviewed runtime files and creates/reuses the exact selected pipeline
+- Activates the chosen schedule only after separately approved exact-pipeline
+  access; explicit validation runs are default-off
+- Separately prepares reviewed runtime files and an exact unrun pipeline
+- Authorizes only that pipeline to use its endpoint and repository; project-wide
+  pipeline access is rejected
 - Preserves existing private reports and default-off isolated approved drift
 
 Existing repositories are preserved by teardown; only repositories created by
@@ -66,7 +71,7 @@ and [Maester 2.3.0 runtime evidence](docs/runtime-maester-230.md) before applyin
 ## Permission lifecycle
 
 - Toggling an option from `Yes` to `No` in a later `azd up` run is additive only and does **not** revoke prior assignments.
-- Revocation/best-effort cleanup runs on `azd down` (predown hook).
+- `azd down` checks ownership first and removes only exactly receipted external objects after Azure absence and a fresh cleanup approval.
 
 ## Authority boundaries
 
@@ -78,24 +83,18 @@ The Azure DevOps identity used for setup must have Code access in the organizati
 
 - Provision/update:
   - `azd up -e <env>`
-- Remove environment + Azure resources + Azure DevOps artifacts (includes predown cleanup):
-  - `azd down -e <env> --force --purge`
-- Optionally remove local azd env files:
+- Remove environment + Azure resources + Azure DevOps artifacts (with separate owned-lock and postdown cleanup approvals):
+  - `azd down -e <env>`
+- Only after complete cleanup and preserving recovery evidence, optionally remove local azd env files:
   - `azd env remove <env> --force`
 
 ### Teardown behavior
 
-`azd down` runs `scripts/Run-AzdPreDown.ps1`, which performs best-effort cleanup of:
+`azd down` validates the fresh dedicated resource group's ownership and exact declared inventory. Foreign resources or locks block teardown. Exact owned locks require a separate default-No confirmation; canceling azd afterward leaves those approved locks removed but resources and authorization unchanged.
 
-- Azure DevOps pipeline
-- Azure DevOps service connection
-- Azure DevOps repository
-- Entra workload identity app registration
-- Easy Auth Entra app (if created)
-- Tracked Teams/Exchange/Azure role assignments created during setup
+After Azure deletion, `scripts/Run-AzdPostDown.ps1` proves the bound group/runtime absent, previews the remaining exact external objects, and requires a new default-No confirmation or current plan hash before deletion. Unknown outcomes, foreign dependencies and unsupported restoration of shared changes block cleanup and retain the journal for retry. A generic `--force` does not approve either hook's plan.
 
-Pre-existing or reused Azure DevOps repositories are intentionally preserved;
-only a repository created by the current environment is removed.
+Preserve both `.azure/<env>/maester-*-ownership.json` receipts until cleanup is verified. The separately administrator-created setup client and access group remain external prerequisites. Deleting owned accounts removes their stored contents; owned ADO definition deletion also removes associated builds/history/artifacts. See [ownership and recovery limits](docs/ownership-lifecycle.md) before teardown. Live before/after acceptance is still required.
 
 ## Notes
 
@@ -106,7 +105,7 @@ only a repository created by the current environment is removed.
 
 ## Script map
 
-- azd hooks: `scripts/Run-AzdPreUp.ps1`, `scripts/Run-AzdPreProvision.ps1`, `scripts/Run-AzdPostProvision.ps1`, `scripts/Run-AzdPreDown.ps1`
+- azd hooks: `scripts/Run-AzdPreUp.ps1`, `scripts/Run-AzdPreProvision.ps1`, `scripts/Run-AzdPostProvision.ps1`, `scripts/Run-AzdPreDown.ps1`, `scripts/Run-AzdPostDown.ps1`
 - Core provisioning: `scripts/Setup-PostDeploy.ps1`
 - Pipeline runtime script (committed to Azure Repos): `scripts/Invoke-MaesterAzureDevOpsRun.ps1`
 - Pipeline validation: `scripts/Invoke-PipelineValidation.ps1`

@@ -232,7 +232,7 @@ function Get-MaesterAdoBootstrapSnapshot {
   if ($ExpectedApplicationId -and $clientId -and $clientId -ine $ExpectedApplicationId) { throw 'The service connection references a different runtime application.' }
   $displayName = "sc-app-maester-$($EnvironmentName.ToLowerInvariant())"
   $appFilter = if ($clientId) { "appId eq '$clientId'" } elseif ($ExpectedApplicationId) { "appId eq '$ExpectedApplicationId'" } else { "displayName eq '$($displayName.Replace("'", "''"))'" }
-  $apps = @(Get-MaesterAdoCollection -Graph -Uri "https://graph.microsoft.com/v1.0/applications?`$filter=$([uri]::EscapeDataString($appFilter))&`$select=id,appId,displayName,signInAudience,passwordCredentials,keyCredentials")
+  $apps = @(Get-MaesterAdoCollection -Graph -Uri "https://graph.microsoft.com/v1.0/applications?`$filter=$([uri]::EscapeDataString($appFilter))&`$select=id,appId,displayName,signInAudience,passwordCredentials,keyCredentials,identifierUris,groupMembershipClaims,web")
   if ($apps.Count -gt 1) { throw 'Runtime application inventory is ambiguous.' }
   $app = if ($apps.Count) { $apps[0] } else { $null }
   if (($clientId -or $ExpectedApplicationId -or $ExpectedApplicationObjectId) -and -not $app) { throw 'The recorded runtime application is missing; never replace it by display name.' }
@@ -313,7 +313,7 @@ function Get-MaesterAdoBootstrapSnapshot {
   # Only nonsecret identity/binding fields may enter a displayed approval plan.
   $safeProject = [pscustomobject][ordered]@{ id = $projectInfo.id; name = $projectInfo.name; state = $projectInfo.state }
   $safeRepository = if ($repository) { [pscustomobject][ordered]@{ id = $repository.id; name = $repository.name; project = $safeProject; remoteUrl = $repository.remoteUrl; defaultBranch = (Get-MaesterAdoProperty $repository 'defaultBranch' '') } } else { $null }
-  $safeApplication = if ($app) { [pscustomobject][ordered]@{ id = $app.id; appId = $app.appId; displayName = $app.displayName; signInAudience = $app.signInAudience } } else { $null }
+  $safeApplication = if ($app) { [pscustomobject][ordered]@{ id = $app.id; appId = $app.appId; displayName = $app.displayName; signInAudience = $app.signInAudience; configuration = Get-MaesterApplicationCreationBaseline $app } } else { $null }
   $safePrincipal = if ($principal) { [pscustomobject][ordered]@{ id = $principal.id; appId = $principal.appId; displayName = $principal.displayName; servicePrincipalType = $principal.servicePrincipalType; appOwnerOrganizationId = $principal.appOwnerOrganizationId } } else { $null }
   $safeEndpoint = if ($endpoint) {
     $data = [ordered]@{}
@@ -357,7 +357,7 @@ function Get-MaesterAdoBootstrapPlan {
     $ops.Add(@{ method = 'POST'; uri = "$($s.root)/serviceendpoint/endpoints?api-version=7.1"; body = $body; kind = 'Endpoint' })
   }
   if (-not $s.application) {
-    $ops.Add(@{ method = 'POST'; uri = 'https://graph.microsoft.com/v1.0/applications'; body = @{ displayName = $s.displayName; signInAudience = 'AzureADMyOrg' }; kind = 'Application' })
+    $ops.Add(@{ method = 'POST'; uri = 'https://graph.microsoft.com/v1.0/applications'; body = @{ displayName = $s.displayName; signInAudience = 'AzureADMyOrg'; identifierUris = @(); groupMembershipClaims = $null; web = @{ redirectUris = @(); implicitGrantSettings = @{ enableIdTokenIssuance = $false; enableAccessTokenIssuance = $false } } }; kind = 'Application' })
   } elseif (-not $s.principal) {
     $ops.Add(@{ method = 'POST'; uri = 'https://graph.microsoft.com/v1.0/servicePrincipals'; body = @{ appId = $s.application.appId }; kind = 'Principal' })
   }
@@ -388,18 +388,163 @@ function Get-MaesterAdoBootstrapPlan {
     -ManifestVersion '1.0' -ManifestSha256 ((Get-FileHash $PSCommandPath -Algorithm SHA256).Hash.ToLowerInvariant()) `
     -Desired $values -Missing $values -Details @{ setupClientId = $env:MAESTER_SETUP_CLIENT_ID; setupAccount = $env:MAESTER_SETUP_ACCOUNT; parameters = $requested; setupScopes = $Parameters.SetupScopes; inventory = $s; operations = @($ops.ToArray()); nextStep = 'Stop after these exact operations. Regenerate a fresh bootstrap plan for newly resolved identities or a separate setup access plan. No Graph grants, RBAC, pipeline permissions or assessment run is authorized here.' }
 }
+function Get-MaesterOwnershipOperationKey {
+  param([Parameter(Mandatory)][string]$Kind, [Parameter(Mandatory)][string]$Target)
+  $hash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($Target))).ToLowerInvariant()
+  return "$Kind`:$hash"
+}
+
+function Get-MaesterAdoOwnershipBinding {
+  param([Parameter(Mandatory)][hashtable]$Parameters, [Parameter(Mandatory)]$Snapshot)
+  if ([string]$Snapshot.organization.name -cne [string]$Parameters.Organization -or [string]$Snapshot.organization.name -notmatch '^[A-Za-z0-9][A-Za-z0-9-]*$') { throw 'Ownership organization must match the exact reviewed Azure DevOps organization.' }
+  @{
+    environmentName = $Parameters.EnvironmentName; tenantId = $Parameters.TenantId.ToLowerInvariant()
+    subscriptionId = $Parameters.SubscriptionId.ToLowerInvariant(); solutionName = 'azure-devops'
+    resourceGroupId = "/subscriptions/$($Parameters.SubscriptionId.ToLowerInvariant())/resourceGroups/$($Parameters.ResourceGroupName)"
+    setupClientId = $env:MAESTER_SETUP_CLIENT_ID.ToLowerInvariant()
+    organizationName = [string]$Snapshot.organization.name; organizationId = [string]$Snapshot.organization.id
+    projectName = [string]$Snapshot.project.name; projectId = [string]$Snapshot.project.id
+    adoOrganizationUrl = "https://dev.azure.com/$($Snapshot.organization.name)"; adoProjectId = [string]$Snapshot.project.id
+  }
+}
+
+function Assert-MaesterOwnershipApplyReady {
+  param([Parameter(Mandatory)]$Session)
+  $journal = Get-MaesterOwnershipJournal -Session $Session
+  if (@($journal.records | Where-Object { $_.state -in @('pending', 'deleting', 'conflict') }).Count) {
+    throw 'An earlier ownership operation has an unresolved outcome or conflict. Inspect its exact receipt before applying more changes.'
+  }
+}
+
+function Find-MaesterOwnedOperationId {
+  param([Parameter(Mandatory)]$Session, [Parameter(Mandatory)][string]$Kind,
+    [Parameter(Mandatory)][string]$IdField, [string]$Id)
+  if (-not $Id) { return '' }
+  $records = @((Get-MaesterOwnershipJournal -Session $Session).records | Where-Object {
+    $_.kind -ceq $Kind -and $_.ownership -ceq 'Created' -and $_.state -ceq 'applied' -and
+    (Get-MaesterAdoProperty $_.exactIds $IdField '') -ceq $Id
+  })
+  if ($records.Count -gt 1) { throw 'Ownership journal has ambiguous parent receipts.' }
+  if ($records.Count -eq 1) { return [string]$records[0].operationId }
+  return ''
+}
+
+function Get-MaesterEndpointBindingState {
+  param($Endpoint)
+  @{
+    appId = [string](Get-MaesterAdoProperty $Endpoint.authorization.parameters 'serviceprincipalid' '')
+    scope = [string](Get-MaesterAdoProperty $Endpoint.authorization.parameters 'scope' '')
+    isDraft = [bool](Get-MaesterAdoProperty $Endpoint.data 'isDraft' $false); isReady = [bool]$Endpoint.isReady
+    issuer = [string](Get-MaesterAdoProperty $Endpoint.authorization.parameters 'workloadIdentityFederationIssuer' '')
+    subject = [string](Get-MaesterAdoProperty $Endpoint.authorization.parameters 'workloadIdentityFederationSubject' '')
+  }
+}
+
+function Get-MaesterApplicationCreationBaseline {
+  param($Application)
+  $web = Get-MaesterAdoProperty $Application 'web'
+  $implicit = Get-MaesterAdoProperty $web 'implicitGrantSettings'
+  $groups = [string](Get-MaesterAdoProperty $Application 'groupMembershipClaims' '')
+  $redirects = Get-MaesterAdoProperty $web 'redirectUris' @()
+  $identifiers = Get-MaesterAdoProperty $Application 'identifierUris' @()
+  @{
+    redirectUris = @($redirects | Where-Object { $null -ne $_ })
+    identifierUris = @($identifiers | Where-Object { $null -ne $_ })
+    groupMembershipClaims = $(if ($groups) { $groups } else { 'None' })
+    enableIdTokenIssuance = [bool](Get-MaesterAdoProperty $implicit 'enableIdTokenIssuance' $false)
+    enableAccessTokenIssuance = [bool](Get-MaesterAdoProperty $implicit 'enableAccessTokenIssuance' $false)
+    signInAudience = [string](Get-MaesterAdoProperty $Application 'signInAudience' 'AzureADMyOrg')
+  }
+}
+
+function Assert-MaesterApplicationCreationState {
+  param($Application, [hashtable]$Baseline, [switch]$Partial)
+  $has = { param($value, $name) $null -ne $value -and $(if ($value -is [Collections.IDictionary]) { $value.Contains($name) } else { $null -ne $value.PSObject.Properties[$name] }) }
+  $web = Get-MaesterAdoProperty $Application 'web'
+  $implicit = Get-MaesterAdoProperty $web 'implicitGrantSettings'
+  $actual = Get-MaesterApplicationCreationBaseline $Application
+  foreach ($field in $Baseline.Keys) {
+    $source = switch ($field) { redirectUris { $web }; { $_ -in @('enableIdTokenIssuance','enableAccessTokenIssuance') } { $implicit }; default { $Application } }
+    if (-not (& $has $source $field)) {
+      if ($Partial) { continue }
+      throw "Application creation readback omitted baseline field '$field'."
+    }
+    $raw = Get-MaesterAdoProperty $source $field
+    if ($field -in @('enableIdTokenIssuance','enableAccessTokenIssuance') -and $raw -isnot [bool]) { throw "Application creation returned malformed baseline field '$field'." }
+    $expectedValue = $Baseline[$field]; $actualValue = $actual[$field]
+    if ($expectedValue -is [array]) {
+      if ($raw -isnot [Collections.IList] -or (@($actualValue | Sort-Object -CaseSensitive) -join [char]0) -cne (@($expectedValue | Sort-Object -CaseSensitive) -join [char]0)) { throw "Application creation differs from approved baseline field '$field'." }
+    } elseif ($actualValue -cne $expectedValue) { throw "Application creation differs from approved baseline field '$field'." }
+  }
+}
+
+function Start-MaesterAdoBootstrapOwnership {
+  param([Parameter(Mandatory)]$Session, [Parameter(Mandatory)]$Plan, [Parameter(Mandatory)]$Operation)
+  $s = $Plan.details.inventory
+  $args = @{ Session = $Session; Key = (Get-MaesterOwnershipOperationKey -Kind "Bootstrap-$($Operation.kind)" -Target $Operation.uri); PlanHash = $Plan.planHash; Ownership = 'Created' }
+  switch ($Operation.kind) {
+    Repository { $args.Kind = 'AdoRepository'; $args.Expected = @{ organizationId = $s.organization.id; projectId = $s.project.id; repositoryName = $Operation.body.name } }
+    Endpoint {
+      $args.Kind = 'AdoServiceConnection'; $args.Expected = @{ organizationId = $s.organization.id; projectId = $s.project.id
+        serviceConnectionName = $Operation.body.name; tenantId = $Plan.details.parameters.TenantId; subscriptionId = $Plan.details.parameters.SubscriptionId; scope = $s.scope; isShared = $false }
+    }
+    Application { $args.Kind = 'EntraApplication'; $args.Expected = @{ purpose = 'Runtime'; displayName = $Operation.body.displayName; creatorPrincipalId = $Plan.principalObjectId }; $args.After = Get-MaesterApplicationCreationBaseline $Operation.body }
+    Principal { $args.Kind = 'EntraServicePrincipal'; $args.Expected = @{ appId = $Operation.body.appId; creatorPrincipalId = $Plan.principalObjectId } }
+    Federation {
+      $args.Kind = 'FederatedIdentityCredential'; $args.Expected = @{ applicationObjectId = $s.application.id
+        issuer = $Operation.body.issuer; subject = $Operation.body.subject; audiences = @($Operation.body.audiences) }
+    }
+    EndpointBinding {
+      $args.Kind = 'AdoServiceConnectionBinding'; $args.Ownership = 'Mutation'
+      $args.Expected = @{ organizationId = $s.organization.id; projectId = $s.project.id; serviceConnectionId = $s.endpoint.id
+        applicationObjectId = $s.application.id; appId = $s.application.appId }
+      $args.Before = Get-MaesterEndpointBindingState $s.endpoint; $args.After = Get-MaesterEndpointBindingState $Operation.body
+      $parent = Find-MaesterOwnedOperationId -Session $Session -Kind AdoServiceConnection -IdField serviceConnectionId -Id $s.endpoint.id
+      if ($parent) { $args.CoveredByOperationId = $parent }
+    }
+    default { throw 'Unsupported bootstrap ownership operation.' }
+  }
+  (Start-MaesterOwnedOperation @args).operationId
+}
+
 function Invoke-MaesterAdoBootstrapPlan {
-  param([Parameter(Mandatory)][hashtable]$Parameters, [Parameter(Mandatory)][string]$ApprovedPlanHash)
+  param([Parameter(Mandatory)][hashtable]$Parameters, [Parameter(Mandatory)][string]$ApprovedPlanHash, $OwnershipSession)
+  if (-not $OwnershipSession) { throw 'An open ownership journal session is required before bootstrap application.' }
+  Assert-MaesterOwnershipApplyReady -Session $OwnershipSession
   $plan = Get-MaesterAdoBootstrapPlan -Parameters $Parameters
   if ($plan.planHash -cne $ApprovedPlanHash) { throw 'Bootstrap inventory changed. Review and approve a fresh bootstrap plan.' }
   Assert-MaesterConsentPlanApproval -Plan $plan -ApprovedPlanHash $ApprovedPlanHash
   $receipts = [Collections.Generic.List[object]]::new()
   foreach ($op in $plan.details.operations) {
+    $operationId = Start-MaesterAdoBootstrapOwnership -Session $OwnershipSession -Plan $plan -Operation $op
     $response = if ($op.uri.StartsWith('https://graph.microsoft.com/')) {
       Invoke-GraphRestRequest -Method $op.method -Uri $op.uri -Body ($op.body | ConvertTo-Json -Depth 40 -Compress) -ContentType 'application/json'
     } else { Invoke-MaesterAdoRequest -Uri $op.uri -TenantId $Parameters.TenantId -Method $op.method -Body $op.body }
     if (-not $response.id) { throw "Bootstrap $($op.kind) returned no exact identifier; stop and inspect before retrying." }
-    $receipts.Add([pscustomobject]@{ kind = $op.kind; id = [string]$response.id })
+    $ids = switch ($op.kind) {
+      Repository { @{ repositoryId = [string]$response.id } }
+      Endpoint { @{ serviceConnectionId = [string]$response.id } }
+      EndpointBinding { @{ serviceConnectionId = [string]$response.id } }
+      Application { @{ applicationObjectId = [string]$response.id; appId = [string]$response.appId } }
+      Principal { @{ servicePrincipalId = [string]$response.id } }
+      Federation { @{ federatedCredentialId = [string]$response.id } }
+    }
+    # Checkpoint the exact response BEFORE subsequent writes or readback. A
+    # failing readback must not erase evidence of an already-created object.
+    Complete-MaesterOwnedOperation -Session $OwnershipSession -OperationId $operationId -ExactIds $ids | Out-Null
+    if ($op.kind -eq 'Application') {
+      try {
+        $baseline = Get-MaesterApplicationCreationBaseline $op.body
+        Assert-MaesterApplicationCreationState -Application $response -Baseline $baseline -Partial
+        $createdApp = Invoke-GraphRestRequest -Method GET -Uri "https://graph.microsoft.com/v1.0/applications/$($response.id)?`$select=id,appId,signInAudience,identifierUris,groupMembershipClaims,web"
+        if ($createdApp.id -ine $response.id -or $createdApp.appId -ine $response.appId) { throw 'Application creation readback returned a different exact identity.' }
+        Assert-MaesterApplicationCreationState -Application $createdApp -Baseline $baseline
+      } catch {
+        Set-MaesterOwnedOperationState -Session $OwnershipSession -OperationId $operationId -State conflict | Out-Null
+        throw
+      }
+    }
+    $receipts.Add([pscustomobject]@{ kind = $op.kind; id = [string]$response.id; operationId = $operationId; baseline = $(if ($op.kind -eq 'Application') { $baseline } else { $null }) })
   }
   # Fresh service inventories verify all outputs and reveal any next-stage delta.
   $result = Get-MaesterAdoBootstrapPlan -Parameters $Parameters
@@ -416,9 +561,20 @@ function Invoke-MaesterAdoBootstrapPlan {
     if ($receipt.kind -eq 'EndpointBinding' -and ($snapshot.endpoint.authorization.parameters.serviceprincipalid -ine $snapshot.application.appId -or
         $snapshot.endpoint.authorization.parameters.scope -ine $snapshot.scope -or
         (Get-MaesterAdoProperty $snapshot.endpoint.data 'isDraft' $false) -eq $true -or $snapshot.endpoint.isReady -ne $true)) {
+      Set-MaesterOwnedOperationState -Session $OwnershipSession -OperationId $receipt.operationId -State conflict | Out-Null
       throw 'Bootstrap endpoint binding readback differs from the approved exact application, scope, draft state or readiness.'
     }
-    if ($receipt.id -ine $actualId) { throw "Bootstrap $($receipt.kind) exact readback could not be verified. Stop and inspect before retrying." }
+    if ($receipt.id -ine $actualId) { Set-MaesterOwnedOperationState -Session $OwnershipSession -OperationId $receipt.operationId -State conflict | Out-Null; throw "Bootstrap $($receipt.kind) exact readback could not be verified. Stop and inspect before retrying." }
+    if ($receipt.kind -eq 'Application') {
+      foreach ($field in $receipt.baseline.Keys) {
+        $expected = $receipt.baseline[$field] | ConvertTo-Json -Depth 5 -Compress
+        $actual = $snapshot.application.configuration[$field] | ConvertTo-Json -Depth 5 -Compress
+        if ($actual -cne $expected) {
+          Set-MaesterOwnedOperationState -Session $OwnershipSession -OperationId $receipt.operationId -State conflict | Out-Null
+          throw "Application creation stage readback differs from approved baseline field '$field'."
+        }
+      }
+    }
   }
   [pscustomobject]@{ AppliedPlan = $plan; NextPlan = $result; Snapshot = $result.details.inventory }
 }
@@ -455,7 +611,10 @@ function Get-MaesterAdoPipelineInventory {
         $definition.project.id -ine $s.project.id -or $definition.repository.id -ine $s.repository.id -or
         $definition.process.yamlFilename.TrimStart('/') -cne $Configuration.yamlPath -or
         $definition.repository.defaultBranch -cne "refs/heads/$($Configuration.branch)") { throw 'Existing pipeline does not match the exact selected project, repository, YAML path and branch.' }
-    $pipeline = [ordered]@{ id = $definition.id; name = $definition.name; revision = $definition.revision; projectId = $s.project.id; repositoryId = $definition.repository.id; yamlPath = $definition.process.yamlFilename; branch = $definition.repository.defaultBranch }
+    $triggers = @()
+    $rawTriggers = Get-MaesterAdoProperty $definition 'triggers'
+    if ($null -ne $rawTriggers) { $triggers = @($rawTriggers) }
+    $pipeline = [ordered]@{ id = $definition.id; name = $definition.name; revision = $definition.revision; projectId = $s.project.id; repositoryId = $definition.repository.id; yamlPath = $definition.process.yamlFilename; branch = $definition.repository.defaultBranch; queueStatus = [string](Get-MaesterAdoProperty $definition 'queueStatus' ''); triggers = $triggers }
   }
   $refs = @(Get-MaesterAdoCollection -Uri "$($s.root)/git/repositories/$($s.repository.id)/refs?filter=$([uri]::EscapeDataString('heads/' + $Configuration.branch))&api-version=7.1" -TenantId $Parameters.TenantId | Where-Object { $_.name -ceq "refs/heads/$($Configuration.branch)" })
   if ($refs.Count -gt 1 -or ($refs.Count -eq 1 -and $refs[0].objectId -cnotmatch '^[a-f0-9]{40}$')) { throw 'Selected branch inventory is ambiguous or malformed.' }
@@ -478,27 +637,106 @@ function Assert-MaesterAdoPipelineBinding {
   } elseif ($current) { throw 'A pipeline appeared after the reviewed creation plan; review a fresh plan.' }
   return $current
 }
+function Get-MaesterAdoPipelinePreparationPlan {
+  param([Parameter(Mandatory)]$Identity, [Parameter(Mandatory)][hashtable]$Configuration,
+    [Parameter(Mandatory)][hashtable]$Parameters)
+  $pipelineInventory = Get-MaesterAdoPipelineInventory -Identity $Identity -Configuration $Configuration -Parameters $Parameters
+  if ($pipelineInventory.pipeline) { throw 'Pipeline preparation requires a fresh pipeline name; an existing definition is never replaced or republished.' }
+  if (-not $Configuration.pushFiles) { throw 'Fresh pipeline preparation requires reviewed runtime file publication. Use PushPipelineFiles=true.' }
+  $creation = @{ method = 'POST'; uri = "$($Identity.snapshot.root)/pipelines?api-version=7.1"; body = @{ name = $Configuration.pipelineName; folder = '\'; configuration = @{ type = 'yaml'; path = "/$($Configuration.yamlPath)"; repository = @{ id = $Identity.snapshot.repository.id; type = 'azureReposGit' } } } }
+  $actions = @("RepositoryPublish:$($Identity.snapshot.repository.id):$($Configuration.branch)", "PipelineCreate:$($Configuration.pipelineName)")
+  New-MaesterConsentPlan -TenantId $Parameters.TenantId -PrincipalObjectId $Identity.principalId -Capability 'AdoPipelinePreparation' `
+    -ManifestVersion '1.0' -ManifestSha256 ((Get-FileHash $PSCommandPath -Algorithm SHA256).Hash.ToLowerInvariant()) `
+    -Desired $actions -Missing $actions -Details @{
+      setupClientId = $env:MAESTER_SETUP_CLIENT_ID; setupAccount = $env:MAESTER_SETUP_ACCOUNT
+      inventory = $Identity.inventory; pipelineInventory = $pipelineInventory; pipelineConfiguration = $Configuration; pipelineCreation = $creation
+      nextStep = 'Publish only these reviewed files and create one unrun pipeline without CI, PR or scheduled triggers. Stop and review a fresh setup access plan binding its exact ID, revision and source commit. No access grants or run are authorized.'
+    }
+}
+function Invoke-MaesterAdoPipelineCreation {
+  param([Parameter(Mandatory)]$Plan, [Parameter(Mandatory)][string]$ApprovedPlanHash, [Parameter(Mandatory)][hashtable]$Parameters)
+  if ($Plan.capability -cne 'AdoPipelinePreparation' -or $ApprovedPlanHash -cne $Plan.planHash) { throw 'Exact pipeline preparation approval is required before definition creation.' }
+  Assert-MaesterConsentPlanApproval -Plan $Plan -ApprovedPlanHash $ApprovedPlanHash
+  $creation = $Plan.details.pipelineCreation
+  Invoke-MaesterAdoRequest -Uri $creation.uri -TenantId $Parameters.TenantId -Method $creation.method -Body $creation.body
+}
+function Get-MaesterAdoPermissionState {
+  param([Parameter(Mandatory)]$Permissions)
+  $all = Get-MaesterAdoProperty (Get-MaesterAdoProperty $Permissions 'allPipelines') 'authorized'
+  $pipelines = Get-MaesterAdoProperty $Permissions 'pipelines'
+  if ($all -isnot [bool] -or $null -eq $pipelines -or $pipelines -isnot [array]) { throw 'Unreadable Azure DevOps pipeline authorization inventory.' }
+  if ($all) { throw 'Unexpected all-pipelines authorization is broader than the exact selected pipeline. Review and remove broad access separately before setup.' }
+  $ids = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+  $values = @()
+  foreach ($pipeline in $pipelines) {
+    $id = [string](Get-MaesterAdoProperty $pipeline 'id')
+    $authorized = Get-MaesterAdoProperty $pipeline 'authorized'
+    if ($id -cnotmatch '^[1-9][0-9]*$' -or $authorized -isnot [bool] -or -not $ids.Add($id)) { throw 'Malformed or ambiguous Azure DevOps pipeline authorization inventory.' }
+    $values += [ordered]@{ id = $id; authorized = $authorized }
+  }
+  [ordered]@{ allPipelines = @{ authorized = $false }; pipelines = @($values | Sort-Object { [long]$_.id }) }
+}
+function Test-MaesterAdoPermissionStateEqual {
+  param($Actual, $Expected)
+  $actualValues = @($Actual.pipelines | ForEach-Object { "$($_.id):$($_.authorized)" }) -join ','
+  $expectedValues = @($Expected.pipelines | ForEach-Object { "$($_.id):$($_.authorized)" }) -join ','
+  return $actualValues -ceq $expectedValues
+}
 function Get-MaesterAdoAccessDelta {
-  param($Identity, [hashtable]$Parameters)
+  param($Identity, [hashtable]$Parameters, [Parameter(Mandatory)]$Pipeline)
   $s = $Identity.snapshot
-  $operations = @(); $inventory = [ordered]@{}
+  $pipelineId = [string]$Pipeline.id
+  if ($pipelineId -cnotmatch '^[1-9][0-9]*$' -or $Pipeline.projectId -ine $s.project.id -or $Pipeline.repositoryId -ine $s.repository.id) { throw 'Exact verified pipeline ID, project and repository are required before access planning.' }
+  $operations = @(); $inventory = [ordered]@{}; $resourceUris = [ordered]@{}
   foreach ($resource in @(@{ type = 'endpoint'; id = $s.endpoint.id }, @{ type = 'repository'; id = "$($s.project.id).$($s.repository.id)" })) {
     $uri = "$($s.root)/pipelines/pipelinePermissions/$($resource.type)/$($resource.id)?api-version=7.1-preview.1"
-    $permissions = Invoke-MaesterAdoRequest -Uri $uri -TenantId $Parameters.TenantId
-    if ($null -eq (Get-MaesterAdoProperty $permissions 'allPipelines') -or $null -eq (Get-MaesterAdoProperty $permissions.allPipelines 'authorized')) { throw 'Unreadable Azure DevOps pipeline authorization inventory.' }
+    $permissions = Get-MaesterAdoPermissionState (Invoke-MaesterAdoRequest -Uri $uri -TenantId $Parameters.TenantId)
     $inventory[$resource.type] = $permissions
-    if ($permissions.allPipelines.authorized -ne $true) {
-      $operations += @{ method = 'PATCH'; uri = $uri; body = @{ allPipelines = @{ authorized = $true }; pipelines = @() }; consequence = "Authorize every pipeline in the exact selected project to use this $($resource.type)." }
+    $resourceUris[$resource.type] = $uri
+    $selected = @($permissions.pipelines | Where-Object { $_.id -ceq $pipelineId -and $_.authorized })
+    if ($selected.Count -eq 0) {
+      # The PATCH is an exact per-pipeline delta, not a replacement list. All
+      # unrelated existing pipeline authorizations remain untouched.
+      $operations += @{ method = 'PATCH'; uri = $uri; body = @{ pipelines = @(@{ id = [long]$pipelineId; authorized = $true }) }; pipelineId = $pipelineId
+        resourceType = $resource.type; resourceId = $resource.id; organizationId = $s.organization.id; projectId = $s.project.id; repositoryId = $s.repository.id
+        consequence = "Authorize only pipeline $pipelineId to use this exact $($resource.type); preserve unrelated pipeline grants." }
     }
   }
-  [ordered]@{ inventory = $inventory; operations = $operations; consequence = 'Existing project-wide pipeline access is preserved; newly needed project-wide access requires exact aggregate plan approval.' }
+  [ordered]@{ pipelineId = $pipelineId; inventory = $inventory; resourceUris = $resourceUris; operations = $operations; consequence = 'Only the exact selected pipeline is authorized. Broad all-pipelines access is rejected and unrelated existing per-pipeline grants are preserved.' }
 }
 function Invoke-MaesterAdoAccessDelta {
-  param($Delta, [hashtable]$Parameters)
+  param($Delta, [hashtable]$Parameters, $OwnershipSession, [string]$ApprovedPlanHash)
+  if (-not $OwnershipSession) { throw 'An open ownership journal session is required before ADO authorization.' }
+  # Recheck even already-authorized resources after Graph/ARM work. A no-op
+  # grant does not permit later publication under newly broadened ADO access.
+  foreach ($resourceType in $Delta.inventory.Keys) {
+    $live = Get-MaesterAdoPermissionState (Invoke-MaesterAdoRequest -Uri $Delta.resourceUris[$resourceType] -TenantId $Parameters.TenantId)
+    if (-not (Test-MaesterAdoPermissionStateEqual $live $Delta.inventory[$resourceType])) { throw 'Azure DevOps pipeline authorization changed after approval; review a fresh plan.' }
+  }
   foreach ($op in $Delta.operations) {
+    $old = $Delta.inventory[$op.resourceType]
+    $live = Get-MaesterAdoPermissionState (Invoke-MaesterAdoRequest -Uri $op.uri -TenantId $Parameters.TenantId)
+    if (-not (Test-MaesterAdoPermissionStateEqual $live $old)) { throw 'Azure DevOps pipeline authorization changed after approval; review a fresh plan.' }
+    $beforeIds = @($old.pipelines | Where-Object authorized | ForEach-Object { [string]$_.id })
+    $afterIds = @($beforeIds + [string]$op.pipelineId | Sort-Object -Unique)
+    $args = @{ Session = $OwnershipSession; Key = "Authorization:$($op.resourceType):$($op.resourceId):$($op.pipelineId)"; Kind = 'AdoPipelineAuthorization'
+      PlanHash = $ApprovedPlanHash; Ownership = 'Mutation'; Expected = @{ organizationId = $op.organizationId; projectId = $op.projectId; resourceType = $op.resourceType; resourceId = $op.resourceId; pipelineId = [string]$op.pipelineId }
+      Before = @{ allPipelinesAuthorized = $false; pipelineIds = $beforeIds }; After = @{ allPipelinesAuthorized = $false; pipelineIds = $afterIds } }
+    $parent = if ($op.resourceType -eq 'endpoint') {
+      Find-MaesterOwnedOperationId -Session $OwnershipSession -Kind AdoServiceConnection -IdField serviceConnectionId -Id $op.resourceId
+    } else { Find-MaesterOwnedOperationId -Session $OwnershipSession -Kind AdoRepository -IdField repositoryId -Id $op.repositoryId }
+    if ($parent) { $args.CoveredByOperationId = $parent }
+    $operationId = (Start-MaesterOwnedOperation @args).operationId
     $null = Invoke-MaesterAdoRequest -Uri $op.uri -TenantId $Parameters.TenantId -Method $op.method -Body $op.body
-    $readback = Invoke-MaesterAdoRequest -Uri $op.uri -TenantId $Parameters.TenantId
-    if ($readback.allPipelines.authorized -ne $true) { throw 'Azure DevOps pipeline authorization could not be verified.' }
+    Complete-MaesterOwnedOperation -Session $OwnershipSession -OperationId $operationId -ExactIds @{ resourceId = $op.resourceId } | Out-Null
+    try {
+      $readback = Get-MaesterAdoPermissionState (Invoke-MaesterAdoRequest -Uri $op.uri -TenantId $Parameters.TenantId)
+      $observedIds = @($readback.pipelines | Where-Object authorized | ForEach-Object { [string]$_.id } | Sort-Object -Unique)
+      if (($observedIds -join ',') -cne ($afterIds -join ',')) { throw 'Azure DevOps exact pipeline authorization could not be verified without changing unrelated grants.' }
+    } catch {
+      Set-MaesterOwnedOperationState -Session $OwnershipSession -OperationId $operationId -State conflict | Out-Null
+      throw
+    }
   }
 }
-Export-ModuleMember -Function Get-MaesterAdoBootstrapPlan, Invoke-MaesterAdoBootstrapPlan, Get-MaesterAdoIdentity, Get-MaesterAdoAccessDelta, Invoke-MaesterAdoAccessDelta, Get-MaesterAdoPipelineInventory, Assert-MaesterAdoPipelineBinding
+Export-ModuleMember -Function Get-MaesterApplicationCreationBaseline, Assert-MaesterApplicationCreationState, Assert-MaesterOwnershipApplyReady, Get-MaesterOwnershipOperationKey, Get-MaesterAdoOwnershipBinding, Find-MaesterOwnedOperationId, Get-MaesterAdoBootstrapPlan, Invoke-MaesterAdoBootstrapPlan, Get-MaesterAdoIdentity, Get-MaesterAdoAccessDelta, Invoke-MaesterAdoAccessDelta, Get-MaesterAdoPipelineInventory, Assert-MaesterAdoPipelineBinding, Get-MaesterAdoPipelinePreparationPlan, Invoke-MaesterAdoPipelineCreation

@@ -21,9 +21,9 @@
     },
     {
       "id": "maester-azd-hooks",
-      "version": "2.1.0",
+      "version": "3.1.1",
       "sourceRepository": "https://github.com/nathanmcnulty/azd-reference",
-      "sourceRevision": "552ade2f0267e6872bd681f9a1d8a67ac72d055b",
+      "sourceRevision": "def75ea1d03636ebae234c5e0b9c0fda25f0f9bf",
       "files": [
         {
           "source": "components/powershell/maester-azd-hooks/Get-ManagedIdentityPrincipal.ps1",
@@ -33,7 +33,7 @@
         {
           "source": "components/powershell/maester-azd-hooks/Grant-MaesterGraphPermissions.ps1",
           "target": "scripts/vendor/Azd.MaesterHooks/Grant-MaesterGraphPermissions.ps1",
-          "sha256": "13f6501047d6fe52b86095a781e459ae091446f6f2800d92c367c2b66c0c9769"
+          "sha256": "3f0b737a6383c41796244368a8bd0c23501c43f9b0c38bfd94eb6fae8184dd5d"
         },
         {
           "source": "components/powershell/maester-azd-hooks/Maester-Helpers.psm1",
@@ -43,7 +43,7 @@
         {
           "source": "components/powershell/maester-azd-hooks/Maester-PreDownCleanup.psm1",
           "target": "scripts/vendor/Azd.MaesterHooks/Maester-PreDownCleanup.psm1",
-          "sha256": "bb69e44d2cdbc21ed468dc58490825002d4b8bf00b2e2296a28a5673f5f2d4b4"
+          "sha256": "aff7487ce9733a83aafe92c1d1cd5687234e2b92cd0df98303927b51ab3ed979"
         },
         {
           "source": "components/powershell/maester-azd-hooks/Maester-PreProvision.psm1",
@@ -53,7 +53,7 @@
         {
           "source": "components/powershell/maester-azd-hooks/Maester-PreUp.psm1",
           "target": "scripts/vendor/Azd.MaesterHooks/Maester-PreUp.psm1",
-          "sha256": "a20d1a17998b50c1acbdaa57f9abc890f6454b95df313d3aaa037d628343806e"
+          "sha256": "623423920e208ce5d7d492968e738ce01bcd3d43512bd831a743abcbb3684238"
         },
         {
           "source": "components/powershell/maester-azd-hooks/Maester-SetupHelpers.psm1",
@@ -74,6 +74,21 @@
           "source": "components/powershell/maester-azd-hooks/Maester-GraphPermissions.json",
           "target": "scripts/vendor/Azd.MaesterHooks/Maester-GraphPermissions.json",
           "sha256": "fa091cc488a1b147b73de707b539146c0c1f6720156a2b5cd77922ffe5de0b76"
+        },
+        {
+          "source": "components/powershell/maester-azd-hooks/Maester-OwnershipJournal.psm1",
+          "target": "scripts/vendor/Azd.MaesterHooks/Maester-OwnershipJournal.psm1",
+          "sha256": "0f16e971b156ef937e039f5551fde6967f069695910922205a33189747263603"
+        },
+        {
+          "source": "components/powershell/maester-azd-hooks/Maester-InfrastructureOwnership.psm1",
+          "target": "scripts/vendor/Azd.MaesterHooks/Maester-InfrastructureOwnership.psm1",
+          "sha256": "f2d316ded17073743bf1b09a162c692e267441de96071b18b67be32dbaa6774f"
+        },
+        {
+          "source": "components/powershell/maester-azd-hooks/Invoke-MaesterDown.ps1",
+          "target": "scripts/vendor/Azd.MaesterHooks/Invoke-MaesterDown.ps1",
+          "sha256": "4435a21500e23fb78bbef04af88293078577f37bda64d6af9db0b7532f13d954"
         }
       ]
     },

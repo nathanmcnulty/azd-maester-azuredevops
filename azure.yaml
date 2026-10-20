@@ -25,7 +25,13 @@ hooks:
     continueOnError: false
   predown:
     shell: pwsh
-    run: ./scripts/Run-AzdPreDown.ps1
+    run: ./scripts/Run-AzdPreDown.ps1 -InteractiveConsent
+    interactive: true
+    continueOnError: false
+
+  postdown:
+    shell: pwsh
+    run: ./scripts/Run-AzdPostDown.ps1 -InteractiveConsent
     interactive: true
     continueOnError: false
 

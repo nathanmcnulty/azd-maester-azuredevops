@@ -67,6 +67,7 @@ Describe 'Azure DevOps repository staging path' {
     $result = Push-RepositoryFiles `
       -RepositoryUrl 'https://example.invalid/repository' `
       -Branch 'main' `
+      -ExpectedBranchObjectId ('a' * 40) `
       -BearerToken 'fixture-token' `
       -Files @([pscustomobject]@{ Path = 'azure-pipelines.yml'; Content = 'fixture' })
 
@@ -81,7 +82,7 @@ Describe 'Azure DevOps repository staging path' {
 
   It 'blocks publication when Git filters transform reviewed bytes' {
     $script:filterChangesBytes = $true
-    { Push-RepositoryFiles -RepositoryUrl 'https://example.invalid/repository' -Branch main -BearerToken 'fixture-token' -Files @([pscustomobject]@{ Path = 'azure-pipelines.yml'; Content = "fixture`r`n" }) } | Should -Throw '*Git changed reviewed publication bytes*'
+    { Push-RepositoryFiles -RepositoryUrl 'https://example.invalid/repository' -Branch main -ExpectedBranchObjectId ('a' * 40) -BearerToken 'fixture-token' -Files @([pscustomobject]@{ Path = 'azure-pipelines.yml'; Content = "fixture`r`n" }) } | Should -Throw '*Git changed reviewed publication bytes*'
     [Text.Encoding]::UTF8.GetString($script:writtenBytes) | Should -BeExactly "fixture`r`n"
     Test-Path -LiteralPath $script:cloneDestination | Should -BeFalse
   }
